@@ -1,0 +1,21 @@
+# Core deep-learning stack (TensorFlow 2.16+ ships Keras 3)
+tensorflow>=2.16,<2.22
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+opencv-python-headless>=4.8
+Pillow>=10.0
+matplotlib>=3.8
+seaborn>=0.13
+tqdm>=4.66
+
+# Dataset download
+kaggle>=1.6
+
+# Demo application
+streamlit>=1.35
+altair>=5.0
+
+# Notebook tooling (optional, for running the notebook locally)
+jupyter
+nbformat

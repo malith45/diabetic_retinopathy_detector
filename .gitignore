@@ -1,0 +1,32 @@
+# ---- data (downloaded from Kaggle, never committed) ----
+data/
+*.zip
+kaggle.json
+
+# ---- large binaries ----
+*.keras
+*.h5
+*.npz
+results/*/checkpoint_*.keras
+
+# keep the deployed model (~20 MB), its metadata and the figures the report needs
+!models/best_model.keras
+!models/model_metadata.json
+!results/**/*.png
+!results/**/*.json
+!results/**/*.csv
+!results/**/*.txt
+
+# ---- python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# ---- tooling ----
+.claude/
+.streamlit/secrets.toml
+.DS_Store
+Thumbs.db
