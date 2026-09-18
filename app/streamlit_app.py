@@ -54,7 +54,13 @@ def load_model_and_meta():
     model_path = MODELS_DIR / "best_model.keras"
     if not model_path.exists() or not meta_path.exists():
         return None, None
-    return keras.models.load_model(model_path), load_json(meta_path)
+    model = keras.models.load_model(model_path)
+    meta = load_json(meta_path)
+    # warm-up: the first call traces the graph and is slow; do it once here so the
+    # first real prediction in a demo is fast
+    dummy = np.zeros((meta["img_size"], meta["img_size"], 3), dtype=np.uint8)
+    make_gradcam_heatmap(model, dummy)
+    return model, meta
 
 
 def pil_to_rgb(file) -> np.ndarray:
@@ -71,6 +77,7 @@ def grade_image(model, meta, rgb: np.ndarray):
         "probs": probs,
         "grade": int(k),
         "confidence": float(probs[k]),
+        "heatmap": heatmap,
         "overlay": overlay_heatmap(proc, heatmap),
         "ms": (time.perf_counter() - t0) * 1000,
     }
@@ -94,6 +101,29 @@ def prob_chart(probs: np.ndarray):
         .properties(height=200)
     )
     st.altair_chart(chart, use_container_width=True)
+
+
+def screening_summary(name: str, res: dict, meta: dict) -> str:
+    """Plain-text summary of one screening, for the download button."""
+    s = STAGE_INFO[res["grade"]]
+    lines = [
+        "RetinaScreen - diabetic retinopathy screening summary",
+        f"Image: {name}",
+        f"Date: {time.strftime('%Y-%m-%d %H:%M')}",
+        f"Model: {meta['backbone']} ({meta['preprocess']} preprocessing, {meta['img_size']} px)",
+        "",
+        f"Predicted grade: {res['grade']} - {s['name']}",
+        f"Confidence: {res['confidence']:.1%}",
+        f"Referable DR (grade >= 2): {'yes' if res['grade'] >= C.REFERABLE_THRESHOLD else 'no'}",
+        f"Urgency: {s['urgency']}",
+        f"Recommended action: {s['advice']}",
+        "",
+        "Grade probabilities:",
+    ] + [f"  {i} - {C.CLASS_LABELS[i]:18s} {p:.1%}" for i, p in enumerate(res["probs"])] + [
+        "",
+        "This is a coursework prototype, not a medical device. Results must be confirmed by an eye-care professional.",
+    ]
+    return "\n".join(lines)
 
 
 def referral_banner(grade: int, confidence: float) -> None:
@@ -164,9 +194,7 @@ with tab_single:
         rgb = pil_to_rgb(file)
         with st.spinner("Grading ..."):
             res = grade_image(model, meta, rgb)
-            if alpha != 0.4:  # re-blend with the chosen opacity
-                hm, _, _ = make_gradcam_heatmap(model, res["processed"])
-                res["overlay"] = overlay_heatmap(res["processed"], hm, alpha)
+        res["overlay"] = overlay_heatmap(res["processed"], res["heatmap"], alpha)
         st.session_state["last_result"] = res
 
         referral_banner(res["grade"], res["confidence"])
@@ -189,6 +217,8 @@ with tab_single:
             referable = res["grade"] >= C.REFERABLE_THRESHOLD
             st.markdown(f"**Referable DR:** {'Yes' if referable else 'No'}  \n"
                         f"**Inference time:** {res['ms']:.0f} ms")
+            summary = screening_summary(getattr(file, "name", str(file)), res, meta)
+            st.download_button("Download screening summary", summary, "screening_summary.txt", "text/plain")
 
         if show_stages:
             st.markdown("**Preprocessing pipeline applied to this image**")
@@ -290,6 +320,23 @@ sparse categorical cross-entropy with inverse-frequency class weights, on-the-fl
         hw = meta.get("trained_on", {})
         if hw:
             st.caption(f"Trained with TensorFlow {hw.get('tensorflow')} on {hw.get('gpu_name') or hw.get('gpu') or 'CPU'}.")
+    # training / evaluation evidence produced by the notebook or scripts/train.py
+    run_dir = ROOT / "results" / meta["run_name"] if meta and meta.get("run_name") else None
+    evidence = [
+        (run_dir / "training_curves.png" if run_dir else None, "Accuracy and loss curves (phase 1: frozen backbone, phase 2: fine-tuning)"),
+        (run_dir / "confusion_matrix_normalised.png" if run_dir else None, "Normalised confusion matrix on the test set"),
+        (run_dir / "per_class_metrics.png" if run_dir else None, "Per-class precision, recall and F1"),
+        (run_dir / "roc_curves.png" if run_dir else None, "ROC curves (one-vs-rest and referable DR)"),
+        (ROOT / "results" / "experiments_comparison.png", "Backbone and preprocessing comparison"),
+        (run_dir / "gradcam_test_samples.png" if run_dir else None, "Grad-CAM on test images"),
+    ]
+    evidence = [(p, cap) for p, cap in evidence if p is not None and p.exists()]
+    if evidence:
+        st.markdown("**Training and evaluation evidence**")
+        for i in range(0, len(evidence), 2):
+            cols = st.columns(2)
+            for col, (p, cap) in zip(cols, evidence[i:i + 2]):
+                col.image(str(p), caption=cap, use_container_width=True)
     st.markdown("""
 **Intended use** - decision *support* for screening programmes: prioritise which patients an
 ophthalmologist should see first.  Not a diagnostic device.
