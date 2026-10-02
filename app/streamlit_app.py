@@ -607,6 +607,9 @@ def sample_grid(paths, key: str) -> None:
 # Page frame
 # --------------------------------------------------------------------------- #
 html(CSS)
+if str(ROOT).startswith("/mount/src"):      # running on Streamlit Community Cloud
+    # its own badge sits in the bottom-right corner of the page, so the chat button moves up above it
+    html("<style>.st-key-chat_fab {bottom:78px !important;}</style>")
 model, meta = load_model_and_meta()
 ss = st.session_state
 samples = (sorted(SAMPLES_DIR.glob("*.png")) + sorted(SAMPLES_DIR.glob("*.jpg"))) if SAMPLES_DIR.exists() else []
