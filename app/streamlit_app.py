@@ -42,7 +42,7 @@ from dr_detection.gradcam import make_gradcam_heatmap, overlay_heatmap  # noqa: 
 from dr_detection.preprocessing import preprocess_image, preprocessing_stages  # noqa: E402
 from dr_detection import kaggle_pipeline as KP  # noqa: E402
 from dr_detection.utils import load_json  # noqa: E402
-from chatbot import INTENTS, STAGE_INFO, ChatContext, RetinaBot  # noqa: E402
+from chatbot import STAGE_INFO, ChatContext, RetinaBot  # noqa: E402
 
 MODELS_DIR = ROOT / "models"
 FIGURES_DIR = ROOT / "figures"
@@ -249,7 +249,8 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], #MainMenu, footer {display:none !important;}
 [data-testid="stMainBlockContainer"], .block-container {padding: 1.4rem 3rem 24px; max-width: 1560px;}
 [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {min-height: calc(100vh - 1.4rem - 24px);}
-[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > :last-child {margin-top: auto;}   /* footer */
+/* footer: pushed to the bottom of the window; only the footer itself, so nothing shifts while the page is loading */
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > :has(.rs-footer) {margin-top: auto;}
 @media (max-width: 720px) {[data-testid="stMainBlockContainer"], .block-container {padding: 1rem 1rem 16px;}
   [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {min-height: calc(100vh - 1rem - 16px);}}
 
@@ -876,8 +877,8 @@ with tab_card:
          'screen.</div><div class="rs-bot">'
          + card("step", "chat", "You ask a question", "Type it in your own words, or tap one of the suggested "
                 "questions.", "1")
-         + card("step", "tag", "It works out the topic", f"It looks for key words to tell which of {len(INTENTS)} "
-                "topics you are asking about, such as your result, the stages or what to do next.", "2")
+         + card("step", "tag", "It understands the question", "It works out what you are asking about: your result, "
+                "what the stages mean, what to do next, and so on.", "2")
          + card("step", "book", "It answers using your result", "It picks an answer written in advance and adds your "
                 "own result to it.", "3")
          + "</div>"
@@ -946,10 +947,10 @@ Grad-CAM so a clinician can verify that the evidence is anatomically plausible.
     evidence = [(t, figs) for t, figs in evidence if figs]
     if evidence:
         with st.expander("Training and evaluation evidence (figures)", icon=":material/insert_chart:"):
-            for tab, (_, figs) in zip(st.tabs([t for t, _ in evidence]), evidence):
-                with tab:
-                    for p, cap in figs:
-                        st.image(str(p), caption=cap, width="stretch")
+            # one chart at a time, and only once chosen: loading all of them on every visit slowed the page down
+            choice = st.pills("Choose a chart to view", [t for t, _ in evidence], key="evidence_chart")
+            for p, cap in dict(evidence).get(choice, []):
+                st.image(str(p), caption=cap, width="stretch")
 
 # ---------------------------------------------------------------------- #
 # RetinaBot: floating chat button (bottom right) that opens a chat panel
