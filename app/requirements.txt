@@ -1,0 +1,9 @@
+# Dependencies of the hosted Retina Screen app only (Streamlit Community Cloud reads this file because it sits
+# next to the entry point app/streamlit_app.py). The full research stack is in ../requirements.txt.
+streamlit==1.64.0            # the version the interface was built and tested with
+tensorflow-cpu==2.20.0       # the version the model was trained with on Kaggle; CPU build keeps the image small
+numpy
+pandas
+Pillow>=10.1
+opencv-python-headless>=4.10
+matplotlib
