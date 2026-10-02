@@ -42,7 +42,7 @@ from dr_detection.gradcam import make_gradcam_heatmap, overlay_heatmap  # noqa: 
 from dr_detection.preprocessing import preprocess_image, preprocessing_stages  # noqa: E402
 from dr_detection import kaggle_pipeline as KP  # noqa: E402
 from dr_detection.utils import load_json  # noqa: E402
-from chatbot import STAGE_INFO, ChatContext, RetinaBot  # noqa: E402
+from chatbot import INTENTS, STAGE_INFO, ChatContext, RetinaBot  # noqa: E402
 
 MODELS_DIR = ROOT / "models"
 FIGURES_DIR = ROOT / "figures"
@@ -220,6 +220,16 @@ ICON = {
     "pulse": '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
     "check": '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
     "next": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    "camera": '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+    "crop": '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
+    "cpu": '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/>',
+    "clipboard": '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+    "shield": '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+    "globe": '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+    "eye": '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+    "chat": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    "tag": '<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/>',
+    "book": '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>',
     "alert": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
 }
 
@@ -252,18 +262,16 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 
 /* RetinaBot: round chat bubble in the bottom-right corner; its label appears on hover */
 .st-key-chat_fab {position:fixed !important; right:24px; bottom:24px; z-index:999; width:auto !important;}
-.st-key-chat_fab button {width:60px; height:60px; min-height:60px; padding:0 !important; border-radius:50% !important;
-  background:linear-gradient(135deg,#14B8A6,#0F766E) !important; border:none !important;
-  box-shadow:0 12px 30px rgba(15,118,110,.40); transition:transform .15s ease, box-shadow .15s ease;}
-.st-key-chat_fab button:hover {transform:translateY(-2px) scale(1.04); box-shadow:0 16px 36px rgba(15,118,110,.45);}
-.st-key-chat_fab button span {color:#fff !important;}
-.st-key-chat_fab button [data-testid="stIconMaterial"] {font-size:28px !important;}
-.st-key-chat_fab button [data-testid="stMarkdownContainer"] {position:absolute; width:1px; height:1px; overflow:hidden;
-  clip:rect(0 0 0 0); white-space:nowrap;}                                      /* label kept for screen readers */
-.st-key-chat_fab::before {content:"Ask RetinaBot"; position:absolute; right:72px; top:50%; transform:translateY(-50%);
-  background:#0F172A; color:#fff; font-size:.8rem; font-weight:600; padding:7px 11px; border-radius:9px; white-space:nowrap;
-  opacity:0; pointer-events:none; transition:opacity .15s ease;}
-.st-key-chat_fab:hover::before {opacity:1;}
+@keyframes rs-pulse {0% {box-shadow:0 14px 34px rgba(15,118,110,.45), 0 0 0 0 rgba(20,184,166,.55);}
+                     100% {box-shadow:0 14px 34px rgba(15,118,110,.45), 0 0 0 20px rgba(20,184,166,0);}}
+.st-key-chat_fab button {height:58px; min-height:58px; padding:0 24px 0 20px !important; border-radius:999px !important;
+  background:linear-gradient(135deg,#14B8A6,#0F766E) !important; border:2px solid #fff !important;
+  box-shadow:0 14px 34px rgba(15,118,110,.45); transition:transform .15s ease, box-shadow .15s ease;
+  animation:rs-pulse 2.4s ease-out .8s 3;}                                      /* draws the eye three times, then rests */
+.st-key-chat_fab button:hover {transform:translateY(-2px); box-shadow:0 18px 40px rgba(15,118,110,.50);}
+.st-key-chat_fab button span, .st-key-chat_fab button p {color:#fff !important;}
+.st-key-chat_fab button p {font-size:1rem; font-weight:700;}
+.st-key-chat_fab button [data-testid="stIconMaterial"] {font-size:24px !important;}
 .st-key-chat_fab button div[aria-hidden="true"] {display:none;}                     /* no dropdown arrow */
 [data-testid="stPopoverBody"] {width:min(420px, calc(100vw - 28px)) !important; max-width:none !important; border-radius:22px !important;
   padding:16px 16px 10px !important; box-shadow:0 24px 60px rgba(15,23,42,.25) !important; border:1px solid #E2E8F0 !important;}
@@ -403,6 +411,38 @@ html {scroll-behavior:smooth;}
 .rs-ref.ok b {color:#0F766E;}
 .rs-ref.diff {color:#9A3412;}
 
+/* About page */
+.rs-sec {font-size:1.45rem; font-weight:800; letter-spacing:-.025em; color:#0F172A; margin:38px 0 2px;}
+.rs-sec-sub {color:#64748B; font-size:.98rem; margin-bottom:16px;}
+.rs-flow {display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px;}
+.rs-step, .rs-limit {position:relative; background:#fff; border:1px solid #E2E8F0; border-radius:20px; padding:20px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 22px rgba(15,23,42,.05);}
+.rs-step .n {position:absolute; top:16px; right:18px; font-weight:800; font-size:1.5rem; color:#E2E8F0;}
+.rs-step .ic, .rs-limit .ic {width:46px; height:46px; border-radius:14px; display:grid; place-items:center; margin-bottom:14px;
+  background:#CCFBF1; color:#0F766E;}
+.rs-limit .ic {background:#FFE4E6; color:#BE123C;}
+.rs-step b, .rs-limit b {display:block; color:#0F172A; font-size:1rem; margin-bottom:4px;}
+.rs-step span, .rs-limit span {color:#64748B; font-size:.9rem; line-height:1.5;}
+.rs-acc {display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:16px;}
+.rs-acc-card {background:#fff; border:1px solid #E2E8F0; border-radius:22px; padding:22px 24px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 22px rgba(15,23,42,.05);}
+.rs-acc-head {display:flex; gap:12px; align-items:center; margin-bottom:6px;}
+.rs-acc-head .ic {width:42px; height:42px; border-radius:12px; display:grid; place-items:center; background:#E0F2FE; color:#0369A1; flex:none;}
+.rs-acc-head b {display:block; color:#0F172A; font-size:1.05rem;}
+.rs-acc-head small {color:#64748B; font-size:.84rem;}
+.rs-meter {margin-top:16px;}
+.rs-meter .top {display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:.92rem; color:#334155;}
+.rs-meter .top b {font-size:1.2rem; color:#0F172A; white-space:nowrap;}
+.rs-meter .top b small {font-size:.8rem; color:#64748B; font-weight:600;}
+.rs-meter .bar {height:10px; background:#EEF2F6; border-radius:999px; margin-top:7px; overflow:hidden;}
+.rs-meter .bar div {height:100%; border-radius:999px;}
+.rs-callout {display:flex; gap:12px; align-items:flex-start; background:#FFF7ED; border:1px solid #FED7AA; border-radius:16px;
+  padding:14px 16px; color:#7C2D12; margin-top:16px; font-size:.94rem; line-height:1.5;}
+.rs-callout .ic {flex:none; color:#C2410C; margin-top:1px;}
+.rs-bot {display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;}
+.rs-note {display:flex; gap:12px; align-items:flex-start; background:#F0FDFA; border:1px solid #99F6E4; border-radius:16px;
+  padding:14px 16px; color:#115E59; margin-top:14px; font-size:.94rem; line-height:1.5;}
+
 /* tiles, probability bars, legends */
 .rs-tiles {display:grid; gap:10px; margin:8px 0 14px;}
 .rs-tile {background:#fff; border:1px solid #E2E8F0; border-radius:16px; padding:14px 16px; box-shadow:0 1px 2px rgba(15,23,42,.04);}
@@ -421,7 +461,7 @@ html {scroll-behavior:smooth;}
 /* chat */
 .rs-context {display:flex; gap:10px; align-items:center; background:#F0FDFA; border:1px solid #99F6E4; color:#115E59; border-radius:16px; padding:12px 16px; font-size:.93rem;}
 .rs-context.muted {background:#fff; border-color:#E2E8F0; color:#475569;}
-.rs-footer {display:flex; align-items:center; flex-wrap:wrap; gap:6px 18px; min-height:54px; margin:32px 72px 0 0; padding:8px 2px;
+.rs-footer {display:flex; align-items:center; flex-wrap:wrap; gap:6px 18px; min-height:54px; margin:32px 210px 0 0; padding:8px 2px;
   border-top:1px solid #E2E8F0; color:#64748B; font-size:.82rem;}
 .rs-foot-brand {display:flex; align-items:center; gap:8px; flex:none;}
 .rs-foot-brand b {font-size:.92rem; font-weight:800; color:#0F172A; letter-spacing:-.01em;}
@@ -437,8 +477,10 @@ html {scroll-behavior:smooth;}
   .st-key-landing .rs-feats {display:none;}   /* phones: the upload area comes straight after the headline */ .rs-res-head {flex-direction:column; align-items:flex-start;}
   .rs-prob {grid-template-columns:100px 1fr 50px;}
   .st-key-chat_fab {right:16px; bottom:16px;}
-  .st-key-chat_fab button {width:56px; height:56px; min-height:56px;}
-  .rs-footer {margin-right:64px;}
+  .st-key-chat_fab button {width:58px; padding:0 !important;}                       /* phones: round icon button */
+  .st-key-chat_fab button [data-testid="stMarkdownContainer"] {position:absolute; width:1px; height:1px; overflow:hidden;
+    clip:rect(0 0 0 0);}
+  .rs-footer {margin-right:70px;}
   .st-key-chat_quick {flex-wrap:nowrap !important; overflow-x:auto; padding-bottom:4px;}   /* one swipeable row */
   .st-key-chat_quick > div {flex:none !important;}}
 </style>
@@ -761,22 +803,79 @@ with tab_card:
     tc = meta.get("training_config", {})
     ds = meta.get("datasets", {})
     m, ext = meta.get("metrics", {}), meta.get("external_metrics", {})
-    keys = [("Accuracy", "accuracy", "{:.1%}"),
-            ("Eyes needing referral that it finds", "referable_sensitivity", "{:.1%}"),
-            ("Healthy eyes it correctly clears", "referable_specificity", "{:.1%}"),
-            ("Agreement with specialists (kappa)", "qwk", "{:.2f}")]
-    html('<div class="rs-section">How accurate is it?</div>')
-    c1, c2 = st.columns(2, gap="large")
-    for col, title, mm in [(c1, "New photos from the same hospital (APTOS 2019)", m),
-                           (c2, "Photos from another country (EyePACS 2015)", ext)]:
-        if mm:
-            col.markdown(f"**{title}**")
-            with col:
-                html(tiles([(label, fmt.format(metric(mm, key))) for label, key, fmt in keys], cols=2))
-    st.caption("Accuracy drops on photographs from other cameras and populations, so a clinic would need to check "
-               "and adapt the model with its own photographs before use. Retina Screen is a screening aid, "
-               "not a medical device.")
 
+    def card(kind: str, ic: str, title: str, text: str, n: str = "") -> str:
+        num = f'<div class="n">{n}</div>' if n else ""
+        return f'<div class="rs-{kind}">{num}<div class="ic">{icon(ic, 22)}</div><b>{title}</b><span>{text}</span></div>'
+
+    def meter(label: str, value: float) -> str:
+        colour = "#14B8A6" if value >= .8 else "#F59E0B" if value >= .5 else "#EF4444"
+        return (f'<div class="rs-meter"><div class="top"><span>{label}</span><b>{round(value * 100)}<small> in 100</small></b></div>'
+                f'<div class="bar"><div style="width:{value * 100:.1f}%;background:{colour}"></div></div></div>')
+
+    hero("About", "Retina Screen",
+         "An AI assistant that checks a photo of the back of the eye for diabetic retinopathy and tells you what to do next.")
+
+    html('<div class="rs-sec">How it works</div><div class="rs-sec-sub">Four steps, a few seconds.</div>'
+         '<div class="rs-flow">'
+         + card("step", "camera", "You add a photo", "A colour photo of the retina, taken with a fundus camera.", "1")
+         + card("step", "crop", "It is prepared", f"Black edges are trimmed and the photo is resized to {meta['img_size']} pixels, "
+                "exactly as during training.", "2")
+         + card("step", "cpu", "The AI looks for damage", f"A neural network ({meta['backbone']}) that learned from about "
+                "2,400 graded photos rates the five stages of the disease.", "3")
+         + card("step", "clipboard", "You get a clear answer", "The stage, how urgent it is, what to do next, and a heat-map "
+                "of where the AI looked.", "4")
+         + "</div>")
+
+    if m and ext:
+        html('<div class="rs-sec">How accurate is it?</div><div class="rs-sec-sub">Measured on photos the AI never saw '
+             'while learning.</div><div class="rs-acc">'
+             '<div class="rs-acc-card"><div class="rs-acc-head">'
+             f'<div class="ic">{icon("eye", 22)}</div><div><b>Photos like the ones it learned from</b>'
+             '<small>523 test photos, same hospital in India (APTOS 2019)</small></div></div>'
+             + meter("Eyes that need a specialist, found", metric(m, "referable_sensitivity"))
+             + meter("Healthy eyes, correctly cleared", metric(m, "referable_specificity"))
+             + meter("Exact stage correct", metric(m, "accuracy"))
+             + meter("Stage correct or one off", metric(m, "within_one_grade_accuracy"))
+             + '</div><div class="rs-acc-card"><div class="rs-acc-head">'
+             f'<div class="ic">{icon("globe", 22)}</div><div><b>Photos from another country</b>'
+             '<small>35,126 photos from US clinics, other cameras (EyePACS 2015)</small></div></div>'
+             + meter("Eyes that need a specialist, found", metric(ext, "referable_sensitivity"))
+             + meter("Healthy eyes, correctly cleared", metric(ext, "referable_specificity"))
+             + meter("Exact stage correct", metric(ext, "accuracy"))
+             + meter("Stage correct or one off", metric(ext, "within_one_grade_accuracy"))
+             + "</div></div>"
+             f'<div class="rs-callout"><div class="ic">{icon("alert", 20)}</div><div><b>What this means:</b> it works well '
+             "on photos like the ones it learned from, but on photos from other cameras it misses many eyes that need "
+             "care. A clinic would have to test and adapt it with its own photos first.</div></div>")
+
+    html('<div class="rs-sec">What it cannot do</div><div class="rs-sec-sub">Know the limits before you trust a '
+         'result.</div><div class="rs-flow">'
+         + card("limit", "shield", "It is not a diagnosis", "It is a screening aid. Only an eye-care professional can "
+                "diagnose and treat.")
+         + card("limit", "alert", "It under-grades severe disease", "Severe eyes are often rated as moderate. Do not "
+                "delay a referral because of a lower grade.")
+         + card("limit", "globe", "Other cameras, other results", "It learned from one hospital. Photos from other "
+                "cameras are graded less reliably.")
+         + card("limit", "eye", "Only diabetic retinopathy", "It cannot detect macular oedema, glaucoma or other "
+                "eye diseases.")
+         + "</div>")
+
+    html('<div class="rs-sec">How RetinaBot works</div><div class="rs-sec-sub">The chat assistant in the corner of every '
+         'screen.</div><div class="rs-bot">'
+         + card("step", "chat", "You ask a question", "Type it in your own words, or tap one of the suggested "
+                "questions.", "1")
+         + card("step", "tag", "It recognises the topic", f"Your words are matched against {len(INTENTS)} topics, such "
+                "as your result, next steps, the stages or the heat-map, using keyword lists.", "2")
+         + card("step", "book", "It answers with your result", "A ready-written answer is filled in with your grade, "
+                "the AI's confidence and the model's measured accuracy.", "3")
+         + "</div>"
+         f'<div class="rs-note"><div>{icon("shield", 20)}</div><div>RetinaBot runs inside the app, needs no internet and '
+         "cannot invent medical facts: every answer was written in advance. If it does not recognise a question, it "
+         "suggests ones it can answer.</div></div>")
+
+    html('<div class="rs-sec">For specialists and examiners</div><div class="rs-sec-sub">The full model card, every '
+         'metric and the evidence figures.</div>')
     with st.expander("How the model was built", icon=":material/neurology:"):
         st.markdown(f"""
 **Task** - 5-class diabetic retinopathy grading (ICDR scale) from colour fundus photographs, with a referable-DR
