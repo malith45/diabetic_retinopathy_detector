@@ -4,7 +4,7 @@ numpy>=1.26
 pandas>=2.1
 scikit-learn>=1.4
 opencv-python-headless>=4.8
-Pillow>=10.0
+Pillow>=10.1
 matplotlib>=3.8
 seaborn>=0.13
 tqdm>=4.66
@@ -13,7 +13,7 @@ tqdm>=4.66
 kaggle>=1.6
 
 # Demo application
-streamlit>=1.35
+streamlit>=1.50
 altair>=5.0
 
 # Notebook tooling (optional, for running the notebook locally)

@@ -1,0 +1,19 @@
+# RetinaScreen theme: light, clinical teal (read automatically by `streamlit run` and Streamlit Cloud)
+[theme]
+base = "light"
+primaryColor = "#0F766E"
+backgroundColor = "#F6F8FB"
+secondaryBackgroundColor = "#EEF2F6"
+textColor = "#0F172A"
+font = "sans serif"
+baseRadius = "0.6rem"
+borderColor = "#E2E8F0"
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
