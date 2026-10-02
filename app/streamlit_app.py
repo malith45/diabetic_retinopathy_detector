@@ -207,10 +207,11 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .stApp {background: radial-gradient(1100px 480px at 0% -10%, rgba(20,184,166,.13), transparent 60%),
                     radial-gradient(900px 420px at 100% -5%, rgba(14,165,233,.10), transparent 60%), #F7FAFC;}
 [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], #MainMenu, footer {display:none !important;}
-[data-testid="stMainBlockContainer"], .block-container {padding-top: 1.4rem; padding-bottom: 2.5rem; max-width: 1120px;}
+[data-testid="stMainBlockContainer"], .block-container {padding: 1.4rem 3rem 2.5rem; max-width: 1560px;}
+@media (max-width: 720px) {[data-testid="stMainBlockContainer"], .block-container {padding: 1rem 1rem 5rem;}}
 
 /* top bar */
-.rs-top {display:flex; align-items:center; justify-content:space-between; padding:0 2px 16px;}
+.rs-top {display:flex; align-items:center; justify-content:space-between; height:52px; padding:0 2px;}
 .rs-brand {display:flex; align-items:center; gap:12px;}
 .rs-brand svg {filter:drop-shadow(0 6px 14px rgba(15,118,110,.30));}
 .rs-brand b {font-size:1.3rem; font-weight:800; color:#0F172A; letter-spacing:-.02em;}
@@ -237,8 +238,10 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 
 /* pill navigation (react-aria tabs in Streamlit >= 1.5x, BaseWeb tabs in older versions) */
 .stTabs [role="tablist"] {gap:4px; background:#fff; padding:5px; border-radius:999px; border:1px solid #E2E8F0 !important;
-  box-shadow:0 1px 2px rgba(15,23,42,.05), 0 6px 18px rgba(15,23,42,.06); width:fit-content; max-width:100%; margin:0 auto 12px;
-  overflow-x:auto;}
+  box-shadow:0 1px 2px rgba(15,23,42,.05), 0 6px 18px rgba(15,23,42,.06); width:fit-content; max-width:100%; margin:-51px 0 26px auto;
+  overflow-x:auto; position:relative; z-index:2;}
+[data-testid="stExpander"] .stTabs [role="tablist"] {margin:0 0 10px 0; box-shadow:none;}   /* tabs inside sections */
+@media (max-width: 860px) {.stTabs [role="tablist"] {margin:4px auto 16px;}}
 .stTabs [role="tab"] {height:40px; padding:0 18px; border-radius:999px; background:transparent; white-space:nowrap;
   display:flex; align-items:center; border:none !important; transition:background .15s;}
 .stTabs [role="tab"]:hover {background:#F1F5F9;}
@@ -264,7 +267,7 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='52' viewBox='0 0 24 24' fill='none' stroke='%230F766E' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' y1='3' x2='12' y2='15'/%3E%3C/svg%3E") no-repeat top center;}
 [data-testid="stFileUploaderDropzone"] {flex-direction:column !important; align-items:center !important; text-align:center;}
 [data-testid="stFileUploaderDropzone"] > span, [data-testid="stFileUploaderDropzoneInstructions"] {align-self:center !important;}
-.st-key-batch_top [data-testid="stFileUploaderDropzone"]::before {content:"Drag and drop retina photos here";}
+.st-key-batch_card [data-testid="stFileUploaderDropzone"]::before {content:"Drag and drop retina photos here";}
 [data-testid="stFileUploaderDropzoneInstructions"] span {font-size:0;}
 [data-testid="stFileUploaderDropzoneInstructions"] span::after {content:"PNG or JPG · the photo is not stored"; font-size:.82rem; color:#64748B;}
 [data-testid="stFileUploaderDropzone"] [data-testid="stBaseButton-secondary"] {background:#0F766E; color:#fff; border:none;
@@ -277,14 +280,18 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 [data-testid="stExpander"] summary p {font-weight:600;}
 
 /* landing */
-.st-key-landing, .st-key-batch_top {width:100%; max-width:760px; margin:0 auto;}
-.rs-hero {text-align:center; padding:14px 0 18px;}
-.rs-hero .t {font-size:2.35rem; line-height:1.15; font-weight:800; letter-spacing:-.035em; color:#0F172A; margin-bottom:10px;}
+.st-key-landing [data-testid="stHorizontalBlock"], .st-key-batch_top [data-testid="stHorizontalBlock"] {flex-wrap:wrap;}
+.st-key-landing [data-testid="stColumn"], .st-key-batch_top [data-testid="stColumn"] {min-width:min(400px,100%);}
+.st-key-drop_card, .st-key-batch_card {background:#fff; border:1px solid #E2E8F0; border-radius:26px; padding:22px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04), 0 18px 40px rgba(15,23,42,.07);}
+.st-key-drop_card [data-testid="stFileUploaderDropzone"], .st-key-batch_card [data-testid="stFileUploaderDropzone"] {box-shadow:none;}
+.rs-hero {padding:10px 0 6px;}
+.rs-hero .t {font-size:clamp(2rem, 3.1vw, 3.1rem); line-height:1.08; font-weight:800; letter-spacing:-.04em; color:#0F172A; margin-bottom:16px;}
 .rs-hero .t span {background:linear-gradient(90deg,#0F766E,#0EA5E9); -webkit-background-clip:text; background-clip:text; color:transparent;}
-.rs-hero p {color:#475569; font-size:1.04rem; max-width:560px; margin:0 auto;}
+.rs-hero p {color:#475569; font-size:1.12rem; line-height:1.6; max-width:520px; margin:0;}
 .rs-divider {display:flex; align-items:center; gap:14px; color:#64748B; font-size:.86rem; font-weight:600; margin:22px 0 10px;}
 .rs-divider::before, .rs-divider::after {content:""; flex:1; height:1px; background:#E2E8F0;}
-.rs-feats {display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:26px;}
+.rs-feats {display:grid; grid-template-columns:1fr; gap:12px; margin-top:28px; max-width:520px;}
 .rs-feat {display:flex; gap:12px; align-items:flex-start; background:rgba(255,255,255,.7); border:1px solid #E2E8F0; border-radius:16px; padding:14px;}
 .rs-feat .ic {flex:none; width:38px; height:38px; border-radius:11px; display:grid; place-items:center; background:#CCFBF1; color:#0F766E;}
 .rs-feat b {display:block; color:#0F172A; font-size:.95rem;}
@@ -320,11 +327,11 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .rs-seg.on .lbl {color:#0F172A; font-weight:700;}
 
 /* photo with an instant heat-map switch (pure CSS, no reload) */
-.rs-viewer {position:relative;}
+.rs-viewer {position:relative; max-width:560px;}
 .rs-viewer input {position:absolute; opacity:0; pointer-events:none;}
 .rs-imgs {position:relative; border-radius:22px; overflow:hidden; box-shadow:0 10px 30px rgba(15,23,42,.14); background:#000;}
-.rs-imgs img {display:block; width:100%; height:auto;}
-.rs-imgs .heat {position:absolute; inset:0; opacity:0; transition:opacity .35s ease;}
+.rs-imgs img {display:block; width:100% !important; height:auto !important; max-width:none !important; margin:0 !important;}
+.rs-imgs .heat {position:absolute; inset:0; height:100% !important; opacity:0; transition:opacity .35s ease;}
 .rs-viewer input:checked ~ .rs-imgs .heat {opacity:1;}
 .rs-switch {display:flex; align-items:center; gap:10px; margin-top:14px; cursor:pointer; font-weight:600; color:#0F172A; font-size:.95rem; user-select:none;}
 .rs-switch .track {width:44px; height:24px; border-radius:999px; background:#CBD5E1; position:relative; transition:background .2s; flex:none;}
@@ -362,7 +369,7 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .st-key-result_row [data-testid="stColumn"] {min-width:min(320px,100%);}
 .st-key-stages [data-testid="stHorizontalBlock"] {flex-wrap:nowrap;}
 .st-key-stages [data-testid="stColumn"] {min-width:0;}
-@media (max-width: 720px) {.rs-hero .t {font-size:1.75rem;} .rs-res-head {flex-direction:column; align-items:flex-start;}
+@media (max-width: 720px) {.rs-hero .t {font-size:1.9rem;} .rs-res-head {flex-direction:column; align-items:flex-start;}
   .rs-prob {grid-template-columns:100px 1fr 50px;} .st-key-chat_fab {right:14px; bottom:14px;}}
 </style>
 """
@@ -373,7 +380,7 @@ def html(markup: str) -> None:
     st.markdown(markup, unsafe_allow_html=True)
 
 
-def data_uri(rgb: np.ndarray, size: int = 448) -> str:
+def data_uri(rgb: np.ndarray, size: int = 640) -> str:
     """Encode an image as an inline JPEG for the HTML parts of the page."""
     img = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8)).resize((size, size), Image.LANCZOS)
     buf = io.BytesIO()
@@ -390,7 +397,7 @@ def tiles(items, cols: int = 2) -> str:
 
 
 def hero(title: str, accent: str, text: str) -> None:
-    html(f'<div class="rs-hero"><div class="t">{title} <span>{accent}</span></div><p>{text}</p></div>')
+    html(f'<div class="rs-hero"><div class="t">{title}<br><span>{accent}</span></div><p>{text}</p></div>')
 
 
 def ring(grade: int, conf: float, colour: str) -> str:
@@ -515,28 +522,32 @@ def clear_photo() -> None:
 with tab_single:
     if ss["photo"] is None:
         with st.container(key="landing"):
-            hero("Check a retina photo for", "diabetic retinopathy",
-                 "Upload a photograph of the back of the eye. In a few seconds you see the stage of the disease "
-                 "and what to do next.")
-            st.file_uploader("Retina photograph", type=["png", "jpg", "jpeg"], label_visibility="collapsed",
-                             key=f"upload_{ss['upload_key']}", on_change=store_upload)
-            if samples:
-                featured = []
-                for g in range(5):        # one APTOS test photo of each stage
-                    featured += [p for p in samples if p.name.lower().startswith(f"aptos_grade{g}_")][:1]
-                others = [p for p in samples if p not in featured]
-                html('<div class="rs-divider">No photo to hand? Tap a sample, one of each stage</div>')
-                sample_grid(featured, "samples")
-                if others:
-                    with st.expander("More samples, including photos from another country"):
-                        sample_grid(others, "samples_more")
-            html('<div class="rs-feats">'
-                 f'<div class="rs-feat"><div class="ic">{icon("upload")}</div><div><b>Add a photo</b>'
-                 '<span>A colour photograph of the retina.</span></div></div>'
-                 f'<div class="rs-feat"><div class="ic">{icon("pulse")}</div><div><b>AI grades it</b>'
-                 '<span>On the 5-stage international scale.</span></div></div>'
-                 f'<div class="rs-feat"><div class="ic">{icon("check")}</div><div><b>Know what to do</b>'
-                 '<span>Whether, and how soon, to see a specialist.</span></div></div></div>')
+            left, right = st.columns([5, 6], gap="large", vertical_alignment="center")
+            with left:
+                hero("Check a retina photo for", "diabetic retinopathy",
+                     "Upload a photograph of the back of the eye. In a few seconds you see the stage of the "
+                     "disease and what to do next.")
+                html('<div class="rs-feats">'
+                     f'<div class="rs-feat"><div class="ic">{icon("upload")}</div><div><b>Add a photo</b>'
+                     '<span>A colour photograph of the retina.</span></div></div>'
+                     f'<div class="rs-feat"><div class="ic">{icon("pulse")}</div><div><b>AI grades it</b>'
+                     '<span>On the 5-stage international scale.</span></div></div>'
+                     f'<div class="rs-feat"><div class="ic">{icon("check")}</div><div><b>Know what to do</b>'
+                     '<span>Whether, and how soon, to see a specialist.</span></div></div></div>')
+            with right:
+                with st.container(key="drop_card"):
+                    st.file_uploader("Retina photograph", type=["png", "jpg", "jpeg"], label_visibility="collapsed",
+                                     key=f"upload_{ss['upload_key']}", on_change=store_upload)
+                    if samples:
+                        featured = []
+                        for g in range(5):        # one APTOS test photo of each stage
+                            featured += [p for p in samples if p.name.lower().startswith(f"aptos_grade{g}_")][:1]
+                        others = [p for p in samples if p not in featured]
+                        html('<div class="rs-divider">No photo to hand? Tap a sample, one of each stage</div>')
+                        sample_grid(featured, "samples")
+                        if others:
+                            with st.expander("More samples, including photos from another country"):
+                                sample_grid(others, "samples_more")
     else:
         name, data = ss["photo"]
         with st.spinner("Checking the photograph ..."):
@@ -545,7 +556,7 @@ with tab_single:
 
         st.button("Check another photo", icon=":material/arrow_back:", type="tertiary", on_click=clear_photo)
         with st.container(key="result_row"):
-            photo_col, res_col = st.columns([5, 6], gap="large")
+            photo_col, res_col = st.columns([5, 7], gap="large")
             with photo_col:
                 html(photo_viewer(res))
             with res_col:
@@ -554,30 +565,29 @@ with tab_single:
                     st.download_button("Download report", screening_summary(name, res, meta), "screening_summary.txt",
                                        "text/plain", type="primary", icon=":material/download:")
                     st.caption("Questions? Ask **RetinaBot**, bottom right.")
-
-        with st.expander("More details"):
-            t_prob, t_tech = st.tabs(["How sure is the AI?", "Technical details"])
-            with t_prob:
-                st.caption("Probability the AI gave to each stage.")
-                html(prob_bars(res["probs"], res["grade"]))
-            with t_tech:
-                src_label, ref = sample_info(name)
-                if ref is not None:
-                    agree = "agrees" if ref == res["grade"] else ("is one grade apart" if abs(ref - res["grade"]) == 1
-                                                                  else "disagrees")
-                    st.markdown(f"**Reference grade** in the {src_label}: {ref} - {C.CLASS_LABELS[ref]} "
-                                f"(the prediction {agree}).")
-                st.markdown(f"**File:** {escape(name)}  \n**Model:** {meta['backbone']}, {meta['preprocess']} "
-                            f"preprocessing, {meta['img_size']} px input"
-                            + (", test-time augmentation (4 flipped views)" if meta.get("tta") else "")
-                            + f"  \n**Original size:** {res['rgb'].shape[1]} x {res['rgb'].shape[0]} px"
-                            + f"  \n**Grading time:** {res['ms']:.0f} ms")
-                st.markdown("**Preprocessing applied to this photograph** (identical to training)")
-                stages = pipeline_stages(res["rgb"], meta)
-                with st.container(key="stages"):
-                    cols = st.columns(len(stages))
-                    for col, (stage_name, img) in zip(cols, stages.items()):
-                        col.image(img, caption=stage_name, width="stretch", clamp=True)
+                with st.expander("More details"):
+                    t_prob, t_tech = st.tabs(["How sure is the AI?", "Technical details"])
+                    with t_prob:
+                        st.caption("Probability the AI gave to each stage.")
+                        html(prob_bars(res["probs"], res["grade"]))
+                    with t_tech:
+                        src_label, ref = sample_info(name)
+                        if ref is not None:
+                            agree = "agrees" if ref == res["grade"] else ("is one grade apart" if abs(ref - res["grade"]) == 1
+                                                                          else "disagrees")
+                            st.markdown(f"**Reference grade** in the {src_label}: {ref} - {C.CLASS_LABELS[ref]} "
+                                        f"(the prediction {agree}).")
+                        st.markdown(f"**File:** {escape(name)}  \n**Model:** {meta['backbone']}, {meta['preprocess']} "
+                                    f"preprocessing, {meta['img_size']} px input"
+                                    + (", test-time augmentation (4 flipped views)" if meta.get("tta") else "")
+                                    + f"  \n**Original size:** {res['rgb'].shape[1]} x {res['rgb'].shape[0]} px"
+                                    + f"  \n**Grading time:** {res['ms']:.0f} ms")
+                        st.markdown("**Preprocessing applied to this photograph** (identical to training)")
+                        stages = pipeline_stages(res["rgb"], meta)
+                        with st.container(key="stages"):
+                            cols = st.columns(len(stages))
+                            for col, (stage_name, img) in zip(cols, stages.items()):
+                                col.image(img, caption=stage_name, width="stretch", clamp=True)
 
 # ---------------------------------------------------------------------- #
 # Tab 2 - batch
@@ -598,18 +608,22 @@ def clear_batch() -> None:
 
 with tab_batch:
     with st.container(key="batch_top"):
-        hero("Screen a whole clinic", "at once",
-             "Add many photographs. The most urgent eyes are listed first, and you can download the results.")
-        files = st.file_uploader("Retina photographs", type=["png", "jpg", "jpeg"], accept_multiple_files=True,
-                                 label_visibility="collapsed", key=f"batch_{ss['batch_key']}")
-        if files:
-            ss["batch_samples"] = False
-        with st.container(horizontal=True, horizontal_alignment="center"):
-            if samples:
-                st.button(f"Try it with our {len(samples)} sample photos", icon=":material/photo_library:",
-                          on_click=use_batch_samples)
-            if files or ss["batch_samples"]:
-                st.button("Clear", type="tertiary", on_click=clear_batch)
+        left, right = st.columns([5, 6], gap="large", vertical_alignment="center")
+        with left:
+            hero("Screen a whole clinic", "at once",
+                 "Add many photographs. The most urgent eyes are listed first, and you can download the results.")
+        with right:
+            with st.container(key="batch_card"):
+                files = st.file_uploader("Retina photographs", type=["png", "jpg", "jpeg"], accept_multiple_files=True,
+                                         label_visibility="collapsed", key=f"batch_{ss['batch_key']}")
+                if files:
+                    ss["batch_samples"] = False
+                with st.container(horizontal=True, horizontal_alignment="center"):
+                    if samples:
+                        st.button(f"Try it with our {len(samples)} sample photos", icon=":material/photo_library:",
+                                  on_click=use_batch_samples)
+                    if files or ss["batch_samples"]:
+                        st.button("Clear", type="tertiary", on_click=clear_batch)
 
     items = ([(f.name, f.getvalue()) for f in files] if files
              else [(p.name, p.read_bytes()) for p in samples] if ss["batch_samples"] else [])
