@@ -476,6 +476,7 @@ html {scroll-behavior:smooth;}
 
 /* responsive rows */
 .st-key-result_row {margin-bottom:14px;}
+.st-key-result_actions {margin:14px 0 6px;}        /* space between the result card and its buttons */
 .st-key-result_row [data-testid="stHorizontalBlock"] {flex-wrap:wrap;}
 .st-key-result_row [data-testid="stColumn"] {min-width:min(320px,100%);}
 .st-key-stages [data-testid="stHorizontalBlock"] {flex-wrap:nowrap;}
@@ -690,7 +691,7 @@ with tab_single:
                 html(photo_viewer(res))
             with res_col:
                 html(result_card(res, sample_info(name)[1]))
-                with st.container(horizontal=True, vertical_alignment="center"):
+                with st.container(horizontal=True, vertical_alignment="center", key="result_actions"):
                     st.download_button("Download report", screening_summary(name, res, meta), "screening_summary.txt",
                                        "text/plain", type="primary", icon=":material/download:")
                     st.caption("Questions? Ask **RetinaBot**, bottom right.")
