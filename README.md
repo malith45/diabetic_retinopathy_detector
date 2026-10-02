@@ -14,7 +14,7 @@ application with Grad-CAM explanations and a built-in assistant.
 | **Final model** | EfficientNetB3 (ImageNet), two-phase fine-tuning, class weights, test-time augmentation |
 | **Main notebook** | `notebooks/` - the executed Kaggle notebook (Steps 1-11, GPU T4) |
 | **Framework** | TensorFlow 2.20 / Keras 3, OpenCV, scikit-learn, Streamlit |
-| **Links** | video, Kaggle notebook and hosted app: see the report |
+| **Links** | Live app: https://diabeticretinopathydetector034.streamlit.app · video and Kaggle notebook: see the report |
 
 ## Results
 
