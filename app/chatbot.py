@@ -71,6 +71,7 @@ class ChatContext:
     probabilities: Optional[List[float]] = None
     model_name: str = "EfficientNetB0"
     metrics: Dict[str, float] = field(default_factory=dict)
+    external_metrics: Dict[str, float] = field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------- #
@@ -231,25 +232,36 @@ class RetinaBot:
             parts = []
             if "accuracy" in m:
                 parts.append(f"accuracy {m['accuracy']:.1%}")
-            if "quadratic_weighted_kappa" in m:
-                parts.append(f"quadratic weighted kappa {m['quadratic_weighted_kappa']:.3f}")
+            qwk = m.get("qwk", m.get("quadratic_weighted_kappa"))
+            if qwk is not None:
+                parts.append(f"quadratic weighted kappa {qwk:.3f}")
             if "macro_f1" in m:
                 parts.append(f"macro F1 {m['macro_f1']:.3f}")
             if "referable_sensitivity" in m:
                 parts.append(f"referable-DR sensitivity {m['referable_sensitivity']:.1%}")
             if "referable_specificity" in m:
                 parts.append(f"referable-DR specificity {m['referable_specificity']:.1%}")
-            return ("On the held-out test set (20 % of the APTOS 2019 images, never seen in training) the model achieved "
-                    + ", ".join(parts) + ". The neighbouring grades (mild vs moderate, severe vs proliferative) are the "
-                    "hardest to separate, which is also true for human graders.")
+            text = ("On the held-out test set (15 % of the APTOS 2019 images, never used for training or tuning) the "
+                    "model achieved " + ", ".join(parts) + ".")
+            ext = ctx.external_metrics or {}
+            ext_qwk = ext.get("qwk", ext.get("quadratic_weighted_kappa"))
+            if ext_qwk is not None:
+                text += (f" On 35,126 images from a completely different dataset (EyePACS 2015, USA) it reached "
+                         f"accuracy {ext.get('accuracy', float('nan')):.1%}, quadratic weighted kappa {ext_qwk:.3f} and "
+                         f"referable-DR sensitivity {ext.get('referable_sensitivity', float('nan')):.1%}, which shows how "
+                         "well it generalises to other cameras and populations.")
+            return text + (" The neighbouring grades (mild vs moderate, severe vs proliferative) are the hardest to "
+                           "separate, which is also true for human graders.")
         return ("Performance is measured on a held-out test split with accuracy, precision, recall, F1-score and the "
                 "quadratic weighted kappa. See the **Model card** tab for the exact numbers of the loaded model.")
 
     def dataset(self, ctx: ChatContext) -> str:
         return ("The model was trained on the **APTOS 2019 Blindness Detection** dataset from Kaggle (Aravind Eye "
                 "Hospital, India): 3,662 colour fundus photographs graded 0-4 by clinicians, using the version resized "
-                "to 224x224 pixels (kaggle.com/datasets/sovitrath/diabetic-retinopathy-224x224-2019-data). The data "
-                "is imbalanced - about half of the images show no DR and only 5 % show severe NPDR.")
+                "to 224x224 pixels (kaggle.com/datasets/sovitrath/diabetic-retinopathy-224x224-2019-data). Duplicate "
+                "photographs were detected and removed before splitting. The data is imbalanced - about half of the "
+                "images show no DR and only 5 % show severe NPDR. The model was then tested, without any retraining, "
+                "on 35,126 images of the EyePACS 2015 dataset from the USA (external validation).")
 
     def limitations(self, ctx: ChatContext) -> str:
         return ("Limitations to keep in mind: the model was trained on ~3,600 images from one hospital network, so "

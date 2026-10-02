@@ -3,7 +3,7 @@ RetinaScreen - Diabetic Retinopathy stage detection demo (Streamlit).
 
 Run locally:      streamlit run app/streamlit_app.py
 Requires:         models/best_model.keras and models/model_metadata.json
-                  (produced by scripts/train.py --save-best or the Colab notebook)
+                  (exported by the Kaggle notebook, or by scripts/train.py --save-best)
 
 Tabs
 ----
@@ -33,10 +33,12 @@ sys.path.insert(0, str(ROOT / "app"))
 from dr_detection import config as C  # noqa: E402
 from dr_detection.gradcam import make_gradcam_heatmap, overlay_heatmap  # noqa: E402
 from dr_detection.preprocessing import preprocess_image, preprocessing_stages  # noqa: E402
+from dr_detection import kaggle_pipeline as KP  # noqa: E402
 from dr_detection.utils import load_json  # noqa: E402
 from chatbot import STAGE_INFO, ChatContext, RetinaBot  # noqa: E402
 
 MODELS_DIR = ROOT / "models"
+FIGURES_DIR = ROOT / "figures"
 SAMPLES_DIR = ROOT / "app" / "assets" / "samples"
 GRADE_COLOURS = ["#2a9d8f", "#e9c46a", "#f4a261", "#e76f51", "#9b2226"]
 
@@ -67,11 +69,43 @@ def pil_to_rgb(file) -> np.ndarray:
     return np.array(Image.open(file).convert("RGB"))
 
 
+def uses_kaggle_pipeline(meta) -> bool:
+    """Models trained in the Kaggle notebook store their preprocessing specification."""
+    return bool(meta) and "preprocessing_spec" in meta
+
+
+def preprocess_for_model(rgb: np.ndarray, meta) -> np.ndarray:
+    """Apply exactly the preprocessing the deployed model was trained with."""
+    if uses_kaggle_pipeline(meta):
+        return KP.preprocess(rgb, meta["preprocess"], meta["img_size"])
+    return preprocess_image(rgb, meta["preprocess"], meta["img_size"])
+
+
+def pipeline_stages(rgb: np.ndarray, meta):
+    if uses_kaggle_pipeline(meta):
+        return KP.stages(rgb, meta["img_size"])
+    return preprocessing_stages(rgb, size=meta["img_size"])
+
+
+def metric(m: dict, key: str) -> float:
+    """Metric lookup that accepts both the notebook and the older script key names."""
+    aliases = {"qwk": ["qwk", "quadratic_weighted_kappa"]}
+    for k in aliases.get(key, [key]):
+        if k in m:
+            return float(m[k])
+    return float("nan")
+
+
 def grade_image(model, meta, rgb: np.ndarray):
-    """Preprocess -> predict -> Grad-CAM.  Returns a dict used by the UI."""
+    """Preprocess -> predict (with test-time augmentation if the model was validated with it)
+    -> Grad-CAM.  Returns a dict used by the UI."""
     t0 = time.perf_counter()
-    proc = preprocess_image(rgb, meta["preprocess"], meta["img_size"])
+    proc = preprocess_for_model(rgb, meta)
     heatmap, probs, k = make_gradcam_heatmap(model, proc)
+    if meta.get("tta"):
+        views = np.stack([proc, proc[:, ::-1], proc[::-1], proc[::-1, ::-1]]).astype(np.float32)
+        probs = model.predict(views, verbose=0).mean(axis=0)
+        k = int(np.argmax(probs))
     return {
         "processed": proc,
         "probs": probs,
@@ -100,7 +134,7 @@ def prob_chart(probs: np.ndarray):
         )
         .properties(height=200)
     )
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 
 def screening_summary(name: str, res: dict, meta: dict) -> str:
@@ -154,11 +188,20 @@ with st.sidebar:
                     f"**Input size:** {meta['img_size']} px")
         m = meta.get("metrics", {})
         if m:
+            st.markdown("**Internal test (APTOS 2019)**")
             c1, c2 = st.columns(2)
-            c1.metric("Test accuracy", f"{m.get('accuracy', 0):.1%}")
-            c2.metric("QWK", f"{m.get('quadratic_weighted_kappa', 0):.3f}")
-            c1.metric("Macro F1", f"{m.get('macro_f1', 0):.3f}")
-            c2.metric("Referable sens.", f"{m.get('referable_sensitivity', 0):.1%}")
+            c1.metric("Accuracy", f"{metric(m, 'accuracy'):.1%}")
+            c2.metric("QWK", f"{metric(m, 'qwk'):.3f}")
+            c1.metric("Macro F1", f"{metric(m, 'macro_f1'):.3f}")
+            c2.metric("Referable sens.", f"{metric(m, 'referable_sensitivity'):.1%}")
+        ext = meta.get("external_metrics", {})
+        if ext:
+            st.markdown("**External validation (EyePACS 2015)**")
+            c1, c2 = st.columns(2)
+            c1.metric("Accuracy", f"{metric(ext, 'accuracy'):.1%}")
+            c2.metric("QWK", f"{metric(ext, 'qwk'):.3f}")
+            c1.metric("Macro F1", f"{metric(ext, 'macro_f1'):.3f}")
+            c2.metric("Referable sens.", f"{metric(ext, 'referable_sensitivity'):.1%}")
     else:
         st.error("No trained model found in `models/`. Run `scripts/train.py --save-best` first.")
     st.divider()
@@ -200,9 +243,9 @@ with tab_single:
         referral_banner(res["grade"], res["confidence"])
 
         c1, c2, c3 = st.columns(3)
-        c1.image(rgb, caption=f"Input image ({rgb.shape[1]}x{rgb.shape[0]})", use_container_width=True)
-        c2.image(res["processed"], caption=f"Preprocessed ({meta['preprocess']}, {meta['img_size']} px)", use_container_width=True)
-        c3.image(res["overlay"], caption="Grad-CAM: regions that drove the prediction", use_container_width=True)
+        c1.image(rgb, caption=f"Input image ({rgb.shape[1]}x{rgb.shape[0]})", width="stretch")
+        c2.image(res["processed"], caption=f"Preprocessed ({meta['preprocess']}, {meta['img_size']} px)", width="stretch")
+        c3.image(res["overlay"], caption="Grad-CAM: regions that drove the prediction", width="stretch")
 
         c4, c5 = st.columns([1, 1])
         with c4:
@@ -222,10 +265,10 @@ with tab_single:
 
         if show_stages:
             st.markdown("**Preprocessing pipeline applied to this image**")
-            stages = preprocessing_stages(rgb, size=meta["img_size"])
+            stages = pipeline_stages(rgb, meta)
             cols = st.columns(len(stages))
             for col, (name, img) in zip(cols, stages.items()):
-                col.image(img, caption=name, use_container_width=True, clamp=True)
+                col.image(img, caption=name, width="stretch", clamp=True)
     elif file is not None and model is None:
         st.error("Model not available.")
     else:
@@ -252,14 +295,14 @@ with tab_batch:
             thumbs.append((f.name, res["overlay"], res["grade"], res["confidence"]))
             progress.progress((i + 1) / len(files))
         df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, width="stretch")
         n_ref = int(df["referable"].sum())
         st.markdown(f"**{len(df)} images graded - {n_ref} referable ({n_ref/len(df):.0%}).**")
         st.download_button("Download CSV report", df.to_csv(index=False).encode(), "dr_batch_report.csv", "text/csv")
         st.markdown("**Grad-CAM overlays**")
         cols = st.columns(min(6, len(thumbs)))
         for i, (name, img, g, conf) in enumerate(thumbs):
-            cols[i % len(cols)].image(img, caption=f"{name}: grade {g} ({conf:.0%})", use_container_width=True)
+            cols[i % len(cols)].image(img, caption=f"{name}: grade {g} ({conf:.0%})", width="stretch")
 
 # ---------------------------------------------------------------------- #
 # Tab 3 - chatbot
@@ -276,6 +319,7 @@ with tab_bot:
         probabilities=[float(p) for p in last["probs"]] if last else None,
         model_name=meta["backbone"] if meta else "CNN",
         metrics=meta.get("metrics", {}) if meta else {},
+        external_metrics=meta.get("external_metrics", {}) if meta else {},
     )
     for role, text in st.session_state["chat"]:
         with st.chat_message(role):
@@ -284,7 +328,7 @@ with tab_bot:
     prompts = ["What does my result mean?", "What should I do next?", "What are the DR stages?", "What is the heat-map?"]
     clicked = None
     for col, p in zip(quick, prompts):
-        if col.button(p, use_container_width=True):
+        if col.button(p, width="stretch"):
             clicked = p
     user_msg = st.chat_input("Type a question ...") or clicked
     if user_msg:
@@ -298,53 +342,63 @@ with tab_bot:
 with tab_card:
     st.subheader("Model card")
     if meta:
+        tc = meta.get("training_config", {})
+        ds = meta.get("datasets", {})
         st.markdown(f"""
 **Task** - 5-class diabetic retinopathy grading (ICDR scale) from colour fundus photographs.
 
-**Dataset** - APTOS 2019 Blindness Detection (Kaggle, `{C.KAGGLE_DATASET}`), 3,662 images,
-stratified 70 / 10 / 20 train / validation / test split, seed 42.
+**Development data** - {ds.get("development", "APTOS 2019 Blindness Detection (Kaggle)")}: duplicate
+photographs removed, stratified 70 / 15 / 15 train / validation / test split, seed 42.
+
+**External validation data** - {ds.get("external", "not evaluated")}: never used for training or tuning.
 
 **Architecture** - {meta['backbone']} (ImageNet weights, `include_top=False`) -> GlobalAveragePooling ->
-Dropout -> Dense 512 -> Dropout -> Dense 256 -> Dense 5 (softmax).
+Dropout {tc.get("dropout", "")} -> Dense 512 -> Dropout -> Dense 256 -> Dense 5 (softmax).
 
-**Preprocessing** - black-border crop -> resize {meta['img_size']} px -> `{meta['preprocess']}` enhancement.
+**Preprocessing** - black-border crop -> pad to square -> resize {meta['img_size']} px ->
+`{meta['preprocess']}` enhancement -> retina mask. Test-time augmentation (flips): {"yes" if meta.get("tta") else "no"}.
 
-**Training** - two phases: frozen backbone (Adam 1e-4) then fine-tuning of the top layers (Adam 1e-5),
-sparse categorical cross-entropy with inverse-frequency class weights, on-the-fly augmentation
-(flips, rotation, zoom, shift, brightness, contrast), early stopping and ReduceLROnPlateau.
+**Training** - phase 1: frozen backbone, Adam {tc.get("lr_head", "")}; phase 2: fine-tuning
+({tc.get("unfreeze", "")} layers, BatchNorm frozen), Adam {tc.get("lr_ft", "")}; batch size {tc.get("batch", "")};
+class balancing: {tc.get("balance", "")}; on-the-fly augmentation (flips, rotation, zoom, shift,
+brightness, contrast); early stopping on validation QWK, ReduceLROnPlateau, model checkpointing.
 """)
-        m = meta.get("metrics", {})
+        m, ext = meta.get("metrics", {}), meta.get("external_metrics", {})
         if m:
-            st.markdown("**Held-out test metrics**")
-            st.table(pd.DataFrame({"metric": list(m.keys()), "value": [f"{v:.4f}" for v in m.values()]}).set_index("metric"))
+            table = pd.DataFrame({"APTOS 2019 test (internal)": pd.Series(m)})
+            if ext:
+                table["EyePACS 2015 (external)"] = pd.Series(ext)
+            st.markdown("**Performance**")
+            st.table(table.apply(lambda col: col.map(lambda v: f"{v:.4f}")))
         hw = meta.get("trained_on", {})
         if hw:
             st.caption(f"Trained with TensorFlow {hw.get('tensorflow')} on {hw.get('gpu_name') or hw.get('gpu') or 'CPU'}.")
-    # training / evaluation evidence produced by the notebook or scripts/train.py
-    run_dir = ROOT / "results" / meta["run_name"] if meta and meta.get("run_name") else None
+    # Training and evaluation evidence exported by the Kaggle notebook (figures/ folder).
     evidence = [
-        (run_dir / "training_curves.png" if run_dir else None, "Accuracy and loss curves (phase 1: frozen backbone, phase 2: fine-tuning)"),
-        (run_dir / "confusion_matrix_normalised.png" if run_dir else None, "Normalised confusion matrix on the test set"),
-        (run_dir / "per_class_metrics.png" if run_dir else None, "Per-class precision, recall and F1"),
-        (run_dir / "roc_curves.png" if run_dir else None, "ROC curves (one-vs-rest and referable DR)"),
-        (ROOT / "results" / "experiments_comparison.png", "Backbone and preprocessing comparison"),
-        (run_dir / "gradcam_test_samples.png" if run_dir else None, "Grad-CAM on test images"),
+        (FIGURES_DIR / "09_experiment_results.png", "Experiments on the validation subset (one factor per stage)"),
+        (FIGURES_DIR / "09_curves_final.png", "Accuracy and loss curves of the final model"),
+        (FIGURES_DIR / "10_confusion_matrices.png", "Confusion matrices on the internal test subset"),
+        (FIGURES_DIR / "10_per_class_metrics_and_roc.png", "Per-grade precision, recall, F1 and ROC curves"),
+        (FIGURES_DIR / "10_confidence_calibration.png", "Confidence calibration"),
+        (FIGURES_DIR / "10_gradcam_test.png", "Grad-CAM on test images"),
+        (FIGURES_DIR / "11_internal_vs_external.png", "Internal test vs external validation"),
+        (FIGURES_DIR / "11_external_confusion_matrices.png", "External validation confusion matrices"),
     ]
-    evidence = [(p, cap) for p, cap in evidence if p is not None and p.exists()]
+    evidence = [(p, cap) for p, cap in evidence if p.exists()]
     if evidence:
         st.markdown("**Training and evaluation evidence**")
         for i in range(0, len(evidence), 2):
             cols = st.columns(2)
             for col, (p, cap) in zip(cols, evidence[i:i + 2]):
-                col.image(str(p), caption=cap, use_container_width=True)
+                col.image(str(p), caption=cap, width="stretch")
     st.markdown("""
 **Intended use** - decision *support* for screening programmes: prioritise which patients an
 ophthalmologist should see first.  Not a diagnostic device.
 
-**Limitations** - single-source dataset (Aravind Eye Hospital, India); cannot detect diabetic
-macular oedema or non-DR pathology; adjacent grades are frequently confused; image quality
-strongly affects results.
+**Limitations** - developed on one source (Aravind Eye Hospital, India) and validated externally
+on EyePACS (USA); cannot detect diabetic macular oedema or non-DR pathology; adjacent grades are
+frequently confused; image quality strongly affects results; model confidence is not clinical certainty.
 
-**Ethics** - the dataset is anonymised and released under CC0; predictions are explained with
+**Ethics** - both datasets are anonymised and released under CC0; predictions are explained with
 Grad-CAM so a clinician can verify that the evidence is anatomically plausible.
 """)
