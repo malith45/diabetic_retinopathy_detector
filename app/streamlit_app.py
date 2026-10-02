@@ -190,21 +190,21 @@ def screening_summary(name: str, res: dict, meta: dict) -> str:
     """Plain-text summary of one screening, for the download button."""
     s = STAGE_INFO[res["grade"]]
     lines = [
-        "Retina Screen - diabetic retinopathy screening summary",
+        "Retina Screen - diabetic retinopathy check",
         f"Image: {name}",
         f"Date: {time.strftime('%Y-%m-%d %H:%M')}",
-        f"Model: {meta['backbone']} ({meta['preprocess']} preprocessing, {meta['img_size']} px)",
+        f"AI model: {meta['backbone']}",
         "",
-        f"Predicted grade: {res['grade']} - {s['name']}",
+        f"Result: {s['title']} (stage {res['grade']} of 4; medical name: {s['name']})",
         f"Confidence: {res['confidence']:.1%}",
-        f"Referable DR (grade >= 2): {'yes' if res['grade'] >= C.REFERABLE_THRESHOLD else 'no'}",
-        f"Urgency: {s['urgency']}",
-        f"Recommended action: {s['advice']}",
+        f"Needs an eye specialist: {'yes' if res['grade'] >= C.REFERABLE_THRESHOLD else 'not at this stage'}",
+        f"How urgent: {s['urgency']}",
+        f"What to do next: {s['advice'][0].upper()}{s['advice'][1:]}",
         "",
-        "Grade probabilities:",
+        "How likely the AI thinks each stage is:",
     ] + [f"  {i} - {C.CLASS_LABELS[i]:18s} {p:.1%}" for i, p in enumerate(res["probs"])] + [
         "",
-        "This is a coursework prototype, not a medical device. Results must be confirmed by an eye-care professional.",
+        "Retina Screen is a screening aid, not a diagnosis. Please have this result confirmed by an eye-care professional.",
     ]
     return "\n".join(lines)
 
@@ -212,7 +212,7 @@ def screening_summary(name: str, res: dict, meta: dict) -> str:
 # --------------------------------------------------------------------------- #
 # Presentation helpers (HTML is generated here; user-supplied text is escaped)
 # --------------------------------------------------------------------------- #
-FRIENDLY = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"]
+FRIENDLY = ["None", "Mild", "Moderate", "Severe", "Advanced"]
 
 # Small line icons (Lucide, ISC licence) used in the HTML parts of the page
 ICON = {
@@ -403,10 +403,16 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 
 /* smoother page: no grey fade while Streamlit updates, gentle entrance of results */
 [data-stale="true"], .stale-element {opacity:1 !important; transition:none !important;}
+[data-testid="stSpinner"] {width:fit-content; background:#fff; border:1px solid #99F6E4; border-radius:999px;
+  padding:8px 18px; box-shadow:0 8px 24px rgba(15,118,110,.18); color:#0F766E; font-weight:600;}
 @keyframes rs-rise {from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:none;}}
 .rs-card, .rs-viewer, .rs-hero, .rs-feats, .rs-tiles {animation:rs-rise .45s ease both;}
 .rs-feats {animation-delay:.08s;}
 html {scroll-behavior:smooth;}
+.rs-official {font-size:.8rem; color:#94A3B8; margin:-6px 0 10px;}
+.rs-safety {display:flex; gap:10px; align-items:flex-start; margin-top:12px; background:#F0F9FF; border:1px solid #BAE6FD;
+  color:#075985; border-radius:14px; padding:10px 14px; font-size:.88rem; line-height:1.45;}
+.rs-safety svg {flex:none; margin-top:1px;}
 .rs-ref {margin-top:14px; padding-top:12px; border-top:1px dashed #E2E8F0; font-size:.86rem; color:#475569;}
 .rs-ref.ok b {color:#0F766E;}
 .rs-ref.diff {color:#9A3412;}
@@ -519,7 +525,7 @@ def ring(grade: int, conf: float, colour: str) -> str:
             f'<circle cx="60" cy="60" r="50" fill="none" stroke="#EEF2F6" stroke-width="10"/>'
             f'<circle cx="60" cy="60" r="50" fill="none" stroke="{colour}" stroke-width="10" stroke-linecap="round" '
             f'stroke-dasharray="{circ * conf:.1f} {circ:.1f}" transform="rotate(-90 60 60)"/>'
-            f'<text x="60" y="50" text-anchor="middle" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1.5">GRADE</text>'
+            f'<text x="60" y="50" text-anchor="middle" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1.5">STAGE</text>'
             f'<text x="60" y="84" text-anchor="middle" font-size="40" font-weight="800" fill="{colour}">{grade}</text>'
             f'</svg><small>{conf:.0%} confidence</small></div>')
 
@@ -539,19 +545,24 @@ def result_card(res: dict, reference=None) -> str:
     parts = [f'<div class="rs-card" style="--g:{col};--gbg:{col}14">',
              '<div class="rs-res-head">', ring(g, conf, col),
              '<div><div class="rs-kicker">Result</div>'
-             f'<div class="rs-stage">{s["name"]}</div>'
+             f'<div class="rs-stage">{s["title"]}</div>'
+             f'<div class="rs-official">Medical name: {s["name"]}</div>'
              f'<span class="rs-pill" style="color:{col};background:{col}1F">● {s["urgency"]}</span></div></div>',
              f'<div class="rs-next"><div class="ic">{icon("next", 18)}</div><div><b>What to do next</b>'
-             f'<p>{s["advice"].capitalize()}</p></div></div>']
+             f'<p>{s["advice"][0].upper()}{s["advice"][1:]}</p></div></div>']
     if conf < LOW_CONFIDENCE:
         parts.append(f'<div class="rs-warn">{icon("alert", 18)}<span>The AI is unsure about this photo. '
                      'Please ask an eye-care professional to look at it.</span></div>')
+    if g in (1, 2):      # the model's most dangerous error is rating severe disease as milder (see the report)
+        parts.append(f'<div class="rs-safety">{icon("shield", 18)}<span>This AI sometimes rates serious disease as '
+                     'milder than it is. If your sight has changed, or a doctor has seen bleeding in your eye, see a '
+                     'specialist without waiting.</span></div>')
     parts.append(severity_scale(g))
     if reference is not None:
         same = reference == g
-        parts.append(f'<div class="rs-ref {"ok" if same else "diff"}">{"✓" if same else "≠"} Eye specialists graded this '
-                     f'photo <b>{reference} · {FRIENDLY[reference]}</b>'
-                     + ("" if same else " · the AI disagrees") + "</div>")
+        verdict = "the AI agrees" if same else ("the AI rated it lower" if g < reference else "the AI rated it higher")
+        parts.append(f'<div class="rs-ref {"ok" if same else "diff"}">{"✓" if same else "≠"} Eye specialists rated this '
+                     f'photo <b>stage {reference} ({FRIENDLY[reference].lower()})</b>: {verdict}.</div>')
     parts.append("</div>")
     return "".join(parts)
 
@@ -562,8 +573,8 @@ def photo_viewer(res: dict) -> str:
     return ('<div class="rs-viewer"><input type="checkbox" id="rs-heat">'
             f'<div class="rs-imgs"><img src="{base}" alt="Your photograph"><img class="heat" src="{heat}" alt="Heat-map"></div>'
             '<label class="rs-switch" for="rs-heat"><span class="track"></span>Show where the AI looked</label>'
-            '<div class="rs-heat-note">Red areas influenced the result most, blue areas least (Grad-CAM). '
-            'In diseased eyes they usually cover lesions.</div></div>')
+            '<div class="rs-heat-note">Red areas influenced the AI the most, blue areas the least. In an eye with '
+            'damage, the red areas usually sit on the damaged spots.</div></div>')
 
 
 def prob_bars(probs, active: int) -> str:
@@ -643,15 +654,15 @@ with tab_single:
             left, right = st.columns([5, 6], gap="large")     # top-aligned: opening a section never moves the headline
             with left:
                 hero("Check a retina photo for", "diabetic retinopathy",
-                     "Upload a photograph of the back of the eye. In a few seconds you see the stage of the "
-                     "disease and what to do next.")
+                     "Upload a photo of the back of the eye. In a few seconds you'll see how far the disease has "
+                     "progressed and what to do next.")
                 html('<div class="rs-feats">'
                      f'<div class="rs-feat"><div class="ic">{icon("upload")}</div><div><b>Add a photo</b>'
-                     '<span>A colour photograph of the retina.</span></div></div>'
-                     f'<div class="rs-feat"><div class="ic">{icon("pulse")}</div><div><b>AI grades it</b>'
-                     '<span>On the 5-stage international scale.</span></div></div>'
+                     '<span>A colour photo of the retina, from an eye clinic or screening visit.</span></div></div>'
+                     f'<div class="rs-feat"><div class="ic">{icon("pulse")}</div><div><b>The AI checks it</b>'
+                     '<span>It looks for signs of damage and rates the stage.</span></div></div>'
                      f'<div class="rs-feat"><div class="ic">{icon("check")}</div><div><b>Know what to do</b>'
-                     '<span>Whether, and how soon, to see a specialist.</span></div></div></div>')
+                     '<span>Whether, and how soon, to see an eye specialist.</span></div></div></div>')
             with right:
                 with st.container(key="drop_card"):
                     st.file_uploader("Retina photograph", type=["png", "jpg", "jpeg"], label_visibility="collapsed",
@@ -661,10 +672,9 @@ with tab_single:
                         html('<div class="rs-divider">No photo to hand? Try one of these</div>')
                         sample_grid(featured, "samples")
                         if hard:
-                            with st.expander(f"Harder cases: {len(hard)} photos the AI gets wrong"):
-                                st.caption("On these photos the AI disagrees with the eye specialists who labelled "
-                                           "them, most often by under-grading severe disease. The badge shows the "
-                                           "specialists' grade.")
+                            with st.expander(f"Photos the AI gets wrong ({len(hard)})"):
+                                st.caption("Eye specialists rated these photos differently from the AI, usually "
+                                           "more severe. The number on each photo is the specialists' stage.")
                                 sample_grid(hard, "samples_more")
     else:
         name, data = ss["photo"]
@@ -686,7 +696,7 @@ with tab_single:
                 with st.expander("More details"):
                     t_prob, t_tech = st.tabs(["How sure is the AI?", "Technical details"])
                     with t_prob:
-                        st.caption("Probability the AI gave to each stage.")
+                        st.caption("How likely the AI thinks each stage is.")
                         html(prob_bars(res["probs"], res["grade"]))
                     with t_tech:
                         src_label, ref = sample_info(name)
@@ -700,7 +710,8 @@ with tab_single:
                                     + (", test-time augmentation (4 flipped views)" if meta.get("tta") else "")
                                     + f"  \n**Original size:** {res['rgb'].shape[1]} x {res['rgb'].shape[0]} px"
                                     + f"  \n**Grading time:** {res['ms']:.0f} ms")
-                        st.markdown("**Preprocessing applied to this photograph** (identical to training)")
+                        st.markdown("**How the photo was prepared for the AI** (the same steps as for the photos "
+                                    "it learned from)")
                         stages = pipeline_stages(res["rgb"], meta)
                         with st.container(key="stages"):
                             cols = st.columns(len(stages))
@@ -728,8 +739,8 @@ with tab_batch:
     with st.container(key="batch_top"):
         left, right = st.columns([5, 6], gap="large", vertical_alignment="center")
         with left:
-            hero("Screen a whole clinic", "at once",
-                 "Add many photographs. The most urgent eyes are listed first, and you can download the results.")
+            hero("Check a whole clinic", "at once",
+                 "Add a batch of photos. The most urgent eyes come first, and you can download the list.")
         with right:
             with st.container(key="batch_card"):
                 files = st.file_uploader("Retina photographs", type=["png", "jpg", "jpeg"], accept_multiple_files=True,
@@ -752,7 +763,7 @@ with tab_batch:
             res = grade_bytes(data, meta.get("run_name", ""), model, meta)
             _, ref = sample_info(name)
             rows.append({
-                "image": name, "grade": res["grade"], "stage": C.CLASS_LABELS[res["grade"]],
+                "image": name, "grade": res["grade"], "stage": STAGE_INFO[res["grade"]]["title"],
                 "confidence": round(res["confidence"], 3),
                 "referable": res["grade"] >= C.REFERABLE_THRESHOLD,
                 "urgency": STAGE_INFO[res["grade"]]["urgency"],
@@ -773,8 +784,8 @@ with tab_batch:
         view["confidence"] = view["confidence"] * 100
         st.dataframe(view, hide_index=True, width="stretch", column_config={
             "image": st.column_config.TextColumn("Photograph", width="large"),
-            "grade": st.column_config.NumberColumn("Grade", format="%d"),
-            "stage": st.column_config.TextColumn("Stage"),
+            "grade": st.column_config.NumberColumn("Stage", format="%d"),
+            "stage": st.column_config.TextColumn("Result"),
             "urgency": st.column_config.TextColumn("Urgency"),
             "confidence": st.column_config.ProgressColumn("Confidence", format="%.0f%%", min_value=0, max_value=100),
         })
@@ -790,11 +801,11 @@ with tab_batch:
                 k = df[known]
                 exact = int((k["grade"] == k["reference grade"]).sum())
                 near = int(((k["grade"] - k["reference grade"]).abs() <= 1).sum())
-                st.caption(f"Agreement with the dataset's reference grade: {exact} of {len(k)} exact, "
-                           f"{near} of {len(k)} within one grade.")
+                st.caption(f"Same stage as the eye specialists: {exact} of {len(k)} photos; "
+                           f"within one stage: {near} of {len(k)}.")
             cols = st.columns(min(5, len(thumbs)))
             for i, (name, img, g, conf) in enumerate(thumbs):
-                cols[i % len(cols)].image(img, caption=f"Grade {g} ({conf:.0%})", width="stretch")
+                cols[i % len(cols)].image(img, caption=f"Stage {g} ({conf:.0%} confidence)", width="stretch")
 
 # ---------------------------------------------------------------------- #
 # Tab 3 - about the model (model card); details in collapsed sections
@@ -818,28 +829,28 @@ with tab_card:
 
     html('<div class="rs-sec">How it works</div><div class="rs-sec-sub">Four steps, a few seconds.</div>'
          '<div class="rs-flow">'
-         + card("step", "camera", "You add a photo", "A colour photo of the retina, taken with a fundus camera.", "1")
-         + card("step", "crop", "It is prepared", f"Black edges are trimmed and the photo is resized to {meta['img_size']} pixels, "
-                "exactly as during training.", "2")
-         + card("step", "cpu", "The AI looks for damage", f"A neural network ({meta['backbone']}) that learned from about "
-                "2,400 graded photos rates the five stages of the disease.", "3")
-         + card("step", "clipboard", "You get a clear answer", "The stage, how urgent it is, what to do next, and a heat-map "
-                "of where the AI looked.", "4")
+         + card("step", "camera", "You add a photo", "A colour photo of the back of the eye, from an eye clinic or "
+                "screening visit.", "1")
+         + card("step", "crop", "The photo is tidied up", "Dark edges are trimmed so the AI sees just the eye.", "2")
+         + card("step", "cpu", "The AI looks for damage", "It learned from about 2,400 eye photos that specialists had "
+                "already graded.", "3")
+         + card("step", "clipboard", "You get a clear answer", "The stage, how urgent it is, what to do next, and where "
+                "the AI looked.", "4")
          + "</div>")
 
     if m and ext:
-        html('<div class="rs-sec">How accurate is it?</div><div class="rs-sec-sub">Measured on photos the AI never saw '
-             'while learning.</div><div class="rs-acc">'
+        html('<div class="rs-sec">How accurate is it?</div><div class="rs-sec-sub">Tested on photos the AI had never '
+             'seen before.</div><div class="rs-acc">'
              '<div class="rs-acc-card"><div class="rs-acc-head">'
              f'<div class="ic">{icon("eye", 22)}</div><div><b>Photos like the ones it learned from</b>'
-             '<small>523 test photos, same hospital in India (APTOS 2019)</small></div></div>'
+             '<small>523 new photos from the same eye hospital in India</small></div></div>'
              + meter("Eyes that need a specialist, found", metric(m, "referable_sensitivity"))
              + meter("Healthy eyes, correctly cleared", metric(m, "referable_specificity"))
              + meter("Exact stage correct", metric(m, "accuracy"))
              + meter("Stage correct or one off", metric(m, "within_one_grade_accuracy"))
              + '</div><div class="rs-acc-card"><div class="rs-acc-head">'
              f'<div class="ic">{icon("globe", 22)}</div><div><b>Photos from another country</b>'
-             '<small>35,126 photos from US clinics, other cameras (EyePACS 2015)</small></div></div>'
+             '<small>35,126 photos from clinics in the USA, taken with other cameras</small></div></div>'
              + meter("Eyes that need a specialist, found", metric(ext, "referable_sensitivity"))
              + meter("Healthy eyes, correctly cleared", metric(ext, "referable_specificity"))
              + meter("Exact stage correct", metric(ext, "accuracy"))
@@ -853,8 +864,8 @@ with tab_card:
          'result.</div><div class="rs-flow">'
          + card("limit", "shield", "It is not a diagnosis", "It is a screening aid. Only an eye-care professional can "
                 "diagnose and treat.")
-         + card("limit", "alert", "It under-grades severe disease", "Severe eyes are often rated as moderate. Do not "
-                "delay a referral because of a lower grade.")
+         + card("limit", "alert", "It can underrate severe disease", "Severe cases are often rated as moderate. Don't "
+                "put off seeing a specialist because of a lower result.")
          + card("limit", "globe", "Other cameras, other results", "It learned from one hospital. Photos from other "
                 "cameras are graded less reliably.")
          + card("limit", "eye", "Only diabetic retinopathy", "It cannot detect macular oedema, glaucoma or other "
@@ -865,17 +876,17 @@ with tab_card:
          'screen.</div><div class="rs-bot">'
          + card("step", "chat", "You ask a question", "Type it in your own words, or tap one of the suggested "
                 "questions.", "1")
-         + card("step", "tag", "It recognises the topic", f"Your words are matched against {len(INTENTS)} topics, such "
-                "as your result, next steps, the stages or the heat-map, using keyword lists.", "2")
-         + card("step", "book", "It answers with your result", "A ready-written answer is filled in with your grade, "
-                "the AI's confidence and the model's measured accuracy.", "3")
+         + card("step", "tag", "It works out the topic", f"It looks for key words to tell which of {len(INTENTS)} "
+                "topics you are asking about, such as your result, the stages or what to do next.", "2")
+         + card("step", "book", "It answers using your result", "It picks an answer written in advance and adds your "
+                "own result to it.", "3")
          + "</div>"
-         f'<div class="rs-note"><div>{icon("shield", 20)}</div><div>RetinaBot runs inside the app, needs no internet and '
-         "cannot invent medical facts: every answer was written in advance. If it does not recognise a question, it "
-         "suggests ones it can answer.</div></div>")
+         f'<div class="rs-note"><div>{icon("shield", 20)}</div><div>RetinaBot works inside the app, doesn\'t need the '
+         "internet and can't make things up: every answer was written in advance. If it doesn't understand a question, "
+         "it suggests ones it can answer.</div></div>")
 
-    html('<div class="rs-sec">For specialists and examiners</div><div class="rs-sec-sub">The full model card, every '
-         'metric and the evidence figures.</div>')
+    html('<div class="rs-sec">Technical details</div><div class="rs-sec-sub">For eye-care professionals and '
+         'developers: how the AI was built, every measurement and the charts behind them.</div>')
     with st.expander("How the model was built", icon=":material/neurology:"):
         st.markdown(f"""
 **Task** - 5-class diabetic retinopathy grading (ICDR scale) from colour fundus photographs, with a referable-DR
@@ -958,7 +969,7 @@ def chat_panel() -> None:
             metrics=meta.get("metrics", {}),
             external_metrics=meta.get("external_metrics", {}),
         )
-        about = (f"About your result: grade {last['grade']}, {FRIENDLY[last['grade']].lower()}" if last
+        about = (f"About your result: stage {last['grade']} ({FRIENDLY[last['grade']].lower()})" if last
                  else "Ask me about diabetic retinopathy")
         with st.container(key="chat_top"):
             head, clear = st.columns([3, 1], vertical_alignment="center")

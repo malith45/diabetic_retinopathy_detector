@@ -26,40 +26,48 @@ from typing import Dict, List, Optional
 # Clinical reference content (ICDR scale + common screening intervals)
 # --------------------------------------------------------------------------- #
 STAGE_INFO: Dict[int, Dict[str, str]] = {
+    # name     = the official ICDR name (shown small, for professionals)
+    # title    = the same stage in everyday words (the headline users see)
+    # findings = what an eye specialist would see, in plain words (medical term in brackets)
     0: {
         "name": "No DR",
-        "findings": "no visible abnormalities.",
-        "advice": "routine repeat screening in about 12 months, plus good control of blood sugar, blood pressure and cholesterol.",
-        "urgency": "Routine",
+        "title": "No diabetic retinopathy",
+        "findings": "no signs of damage to the retina.",
+        "advice": "have your eyes checked again in about a year, and keep your blood sugar, blood pressure and cholesterol under control.",
+        "urgency": "Routine check-up",
     },
     1: {
         "name": "Mild non-proliferative DR",
-        "findings": "microaneurysms only (tiny bulges in the retinal capillaries).",
-        "advice": "repeat screening in 6-12 months; no treatment is usually needed at this stage, but tighter diabetes control slows progression.",
-        "urgency": "Routine",
+        "title": "Mild diabetic retinopathy",
+        "findings": "tiny bulges in the small blood vessels of the retina (microaneurysms).",
+        "advice": "have your eyes checked again within 6 to 12 months. Treatment is not usually needed yet, but better diabetes control slows the disease down.",
+        "urgency": "Routine check-up",
     },
     2: {
         "name": "Moderate non-proliferative DR",
-        "findings": "haemorrhages, hard exudates or cotton-wool spots - more than microaneurysms but less than severe NPDR.",
-        "advice": "referral to an ophthalmologist for a full dilated examination, typically within 3-6 months; check for diabetic macular oedema.",
-        "urgency": "Referable",
+        "title": "Moderate diabetic retinopathy",
+        "findings": "small bleeds and leaks in the retina (haemorrhages and exudates).",
+        "advice": "see an eye specialist within the next 3 to 6 months for a full eye examination.",
+        "urgency": "See a specialist",
     },
     3: {
         "name": "Severe non-proliferative DR",
-        "findings": "extensive haemorrhages in all four quadrants, venous beading or intraretinal microvascular abnormalities (the 4-2-1 rule).",
-        "advice": "urgent referral to an ophthalmologist, normally within 4 weeks; the risk of progressing to proliferative DR within a year is high.",
-        "urgency": "Urgent referral",
+        "title": "Severe diabetic retinopathy",
+        "findings": "many bleeds across the retina and damaged, irregular blood vessels.",
+        "advice": "see an eye specialist urgently, within 4 weeks. Without care, this stage often gets worse within a year.",
+        "urgency": "Urgent",
     },
     4: {
         "name": "Proliferative DR",
-        "findings": "growth of new fragile blood vessels (neovascularisation) and/or vitreous or pre-retinal haemorrhage.",
-        "advice": "immediate referral - ideally within 1-2 weeks - because laser photocoagulation or anti-VEGF injections may be needed to prevent vision loss.",
-        "urgency": "Immediate referral",
+        "title": "Advanced diabetic retinopathy",
+        "findings": "new, fragile blood vessels growing on the retina, which can bleed (neovascularisation).",
+        "advice": "see an eye specialist as soon as possible, ideally within 1 to 2 weeks. Treatment such as laser or eye injections can prevent sight loss.",
+        "urgency": "Very urgent",
     },
 }
 
-DISCLAIMER = ("Remember: this tool is a screening aid built for a university coursework. "
-              "It is not a medical device and cannot replace an examination by an eye-care professional.")
+DISCLAIMER = ("Retina Screen is a screening aid, not a diagnosis. Please have any result confirmed by an "
+              "eye-care professional.")
 
 
 @dataclass
@@ -143,152 +151,127 @@ class RetinaBot:
     # handlers
     # ------------------------------------------------------------------ #
     def greeting(self, ctx: ChatContext) -> str:
-        return ("Hello! I am RetinaBot, the assistant of this diabetic retinopathy screening demo. "
-                "Ask me what your result means, what the five DR stages are, what to do next, "
-                "or how the AI model works.")
+        return ("Hi, I'm RetinaBot. I can explain your result, what each stage of diabetic retinopathy means "
+                "and what to do next. What would you like to know?")
 
     def thanks(self, ctx: ChatContext) -> str:
-        return "You are welcome. Take care of your eyes - and keep your regular diabetes check-ups!"
+        return "You're welcome. Take care of your eyes, and keep up your regular diabetes check-ups!"
 
     def help(self, ctx: ChatContext) -> str:
         return ("You can ask me things like:\n"
                 "- *What does my result mean?*\n"
+                "- *Is this serious?*\n"
                 "- *What should I do next?*\n"
-                "- *What are the stages of diabetic retinopathy?*\n"
+                "- *What are the stages?*\n"
                 "- *What is the heat-map showing?*\n"
-                "- *How accurate is the model?*\n"
-                "- *How can I reduce my risk?*")
+                "- *How accurate is it?*\n"
+                "- *How can I lower my risk?*")
 
     def result(self, ctx: ChatContext) -> str:
         if ctx.grade is None:
-            return ("No image has been graded yet. Upload a fundus photograph in the **Screen a photo** tab "
-                    "and I will explain the result.")
+            return ("You haven't checked a photo yet. Add one on the **Screen a photo** page and I'll explain "
+                    "the result.")
         s = STAGE_INFO[ctx.grade]
-        conf = f" with {ctx.confidence:.0%} confidence" if ctx.confidence is not None else ""
-        txt = (f"Your image was graded **{ctx.grade} - {s['name']}**{conf}. "
-               f"At this stage a clinician would expect to see {s['findings']} "
-               f"Recommended action: {s['advice']}")
+        conf = f", and the AI is {ctx.confidence:.0%} sure" if ctx.confidence is not None else ""
+        txt = (f"Your photo was rated **{s['title']}** (stage {ctx.grade} of 4){conf}. At this stage an eye "
+               f"specialist would usually see {s['findings']}\n\n**What to do next:** {s['advice'][0].upper()}{s['advice'][1:]}")
         if ctx.probabilities:
             second = sorted(range(5), key=lambda i: -ctx.probabilities[i])[1]
             if ctx.probabilities[second] > 0.2:
-                txt += (f"\n\nThe model also gave {ctx.probabilities[second]:.0%} to "
-                        f"**{STAGE_INFO[second]['name']}**, so the image sits close to the boundary between the two grades.")
+                txt += (f"\n\nThe AI also gave {ctx.probabilities[second]:.0%} to **{STAGE_INFO[second]['title'].lower()}**, "
+                        "so your photo is close to the border between the two stages.")
         return txt + "\n\n" + DISCLAIMER
 
     def severity(self, ctx: ChatContext) -> str:
         if ctx.grade is None:
-            return ("Once a photograph has been checked I can tell you how serious the result is. In general, grades "
-                    "0-1 are not urgent, grade 2 needs an appointment with an eye specialist, and grades 3-4 need "
-                    "urgent specialist care.")
+            return ("Once you've checked a photo I can tell you how serious the result is. In general, stages 0 "
+                    "and 1 are not urgent, stage 2 means seeing an eye specialist, and stages 3 and 4 need urgent care.")
         s = STAGE_INFO[ctx.grade]
         level = {0: "reassuring: no signs of diabetic retinopathy were found",
-                 1: "an early, mild stage that usually needs no treatment, only closer monitoring",
-                 2: "not an emergency, but you should see an eye specialist",
-                 3: "serious: the eye should be seen by a specialist urgently",
-                 4: "very serious: the eye needs specialist care as soon as possible"}[ctx.grade]
-        return (f"Your result, **{s['name']}**, is {level}. Recommended action: {s['advice']} Treated in time, "
-                f"most sight loss from diabetic retinopathy can be prevented.\n\n{DISCLAIMER}")
+                 1: "an early, mild stage that usually needs no treatment, only regular check-ups",
+                 2: "not an emergency, but it does need a specialist's attention",
+                 3: "serious and needs attention soon",
+                 4: "very serious and needs attention straight away"}[ctx.grade]
+        return (f"Your result, **{s['title'].lower()}**, is {level}. {s['advice'][0].upper()}{s['advice'][1:]} "
+                f"Caught in time, most sight loss from diabetic retinopathy can be prevented.\n\n{DISCLAIMER}")
 
     def next_steps(self, ctx: ChatContext) -> str:
         if ctx.grade is None:
-            return ("Once an image has been graded I can give stage-specific guidance. In general: grades 0-1 mean "
-                    "routine annual screening, grade 2 means referral to an ophthalmologist, and grades 3-4 need "
-                    "urgent specialist care.")
+            return ("Once you've checked a photo I can tell you exactly. In general: stages 0 and 1 need a check-up "
+                    "every year, stage 2 means seeing an eye specialist, and stages 3 and 4 need urgent care.")
         s = STAGE_INFO[ctx.grade]
-        return (f"For **{s['name']}** the usual recommendation is: {s['advice']} "
-                f"Urgency level: **{s['urgency']}**.\n\n{DISCLAIMER}")
+        return (f"For **{s['title'].lower()}**: {s['advice']} How urgent: **{s['urgency']}**.\n\n{DISCLAIMER}")
 
     def what_is_dr(self, ctx: ChatContext) -> str:
-        return ("Diabetic retinopathy (DR) is damage to the tiny blood vessels of the retina - the light-sensitive "
-                "layer at the back of the eye - caused by long-term high blood sugar. Vessels leak, close off, or "
-                "grow abnormally, and without treatment this is a leading cause of blindness in working-age adults. "
-                "It is usually symptom-free in the early stages, which is why regular photographic screening matters.")
+        return ("Diabetic retinopathy is damage to the tiny blood vessels at the back of the eye (the retina), "
+                "caused by high blood sugar over many years. The vessels can leak, close up or grow abnormally. "
+                "It is a leading cause of sight loss in adults, but early on it has no symptoms at all, which is "
+                "why regular eye photos are so important.")
 
     def stages(self, ctx: ChatContext) -> str:
-        lines = ["The International Clinical DR scale has five grades:"]
+        lines = ["Doctors use five stages:"]
         for g, s in STAGE_INFO.items():
-            lines.append(f"- **{g} - {s['name']}**: {s['findings']}")
-        lines.append("Grades 2 and above are called *referable DR* because the patient should be seen by an eye specialist.")
+            lines.append(f"- **{g} · {s['title']}**: {s['findings']}")
+        lines.append("From stage 2 onwards you should see an eye specialist.")
         return "\n".join(lines)
 
     def symptoms(self, ctx: ChatContext) -> str:
-        return ("Early DR usually causes **no symptoms** at all. Later signs can include blurred or fluctuating vision, "
-                "dark spots or 'floaters', difficulty seeing at night, and sudden vision loss if a haemorrhage occurs. "
-                "Because the early stages are silent, screening photographs like the one you uploaded are the main way "
-                "DR is caught in time.")
+        return ("In the early stages there are usually **no symptoms** at all. Later you may notice blurred or "
+                "changing vision, dark spots or 'floaters', trouble seeing at night, or sudden sight loss if a "
+                "blood vessel bleeds. Because the early stages are silent, an eye photo is the main way to catch "
+                "the disease in time.")
 
     def risk(self, ctx: ChatContext) -> str:
-        return ("The main drivers of DR are how long someone has had diabetes and how well blood sugar is controlled. "
-                "High blood pressure, high cholesterol, kidney disease, pregnancy and smoking all increase the risk. "
-                "Keeping HbA1c, blood pressure and lipids in target range, not smoking, and attending yearly eye "
-                "screening are the most effective ways to slow progression.")
+        return ("The biggest factors are how long you have had diabetes and how well your blood sugar is "
+                "controlled. High blood pressure, high cholesterol, kidney disease, pregnancy and smoking all add to "
+                "the risk. Keeping your long-term blood sugar (HbA1c), blood pressure and cholesterol on target, not "
+                "smoking, and having your eyes checked every year are the best ways to slow it down.")
 
     def confidence(self, ctx: ChatContext) -> str:
         if ctx.confidence is None:
-            return ("Confidence is the softmax probability the model assigns to its chosen grade. Values above ~80 % "
-                    "indicate a clear-cut image; values near 40-50 % mean the image lies between two grades and "
-                    "should be reviewed by a person.")
+            return ("Confidence shows how sure the AI is about its answer. Above about 80% the photo is a clear "
+                    "case; around 50% it sits between two stages and a person should check it.")
         level = "high" if ctx.confidence >= 0.8 else "moderate" if ctx.confidence >= 0.55 else "low"
-        return (f"The model's confidence for your image is **{ctx.confidence:.0%}**, which is {level}. "
-                + ("A clear result." if level == "high" else
-                   "The image sits near a grade boundary, so a human grader should double-check it."))
+        return (f"The AI is **{ctx.confidence:.0%}** sure about your photo, which is {level}. "
+                + ("It is a clear case." if level == "high" else
+                   "Your photo sits close to the border between two stages, so an eye specialist should check it."))
 
     def model(self, ctx: ChatContext) -> str:
-        return (f"Under the hood this app uses a **{ctx.model_name}** convolutional neural network pretrained on "
-                "ImageNet and fine-tuned on retinal photographs (transfer learning). Each image is first cropped to "
-                "the retina, padded to a square and resized to 224x224 (extra contrast filters were tested but did "
-                "not help), then the network outputs a probability for each of the five DR grades. Training used data augmentation, "
-                "class weighting for the rare severe grades, early stopping and a two-phase fine-tuning schedule.")
+        return ("The AI is a neural network: a computer program that learned to spot signs of the disease by "
+                "studying about 2,400 retina photos that eye specialists had already graded. It started from a "
+                "network that already knew how to recognise everyday pictures, and was then taught on eye photos. "
+                "For a new photo it works out how likely each of the five stages is and picks the most likely one.")
 
     def gradcam(self, ctx: ChatContext) -> str:
-        return ("The heat-map is a **Grad-CAM** visualisation. It back-propagates the score of the predicted grade to "
-                "the last convolutional layer and colours the regions that pushed the decision: red/yellow areas "
-                "contributed most, blue areas hardly at all. For a trustworthy prediction the warm colours should "
-                "sit on lesions (haemorrhages, exudates, abnormal vessels) rather than on the image border or the "
-                "optic disc alone.")
+        return ("The heat-map shows which parts of the photo influenced the AI most: red and yellow areas mattered "
+                "most, blue areas hardly at all. In an eye with damage, the warm colours should sit on the damaged "
+                "spots, such as bleeds or leaks, and not on the edge of the photo.")
 
     def accuracy(self, ctx: ChatContext) -> str:
-        m = ctx.metrics or {}
-        if m:
-            parts = []
-            if "accuracy" in m:
-                parts.append(f"accuracy {m['accuracy']:.1%}")
-            qwk = m.get("qwk", m.get("quadratic_weighted_kappa"))
-            if qwk is not None:
-                parts.append(f"quadratic weighted kappa {qwk:.3f}")
-            if "macro_f1" in m:
-                parts.append(f"macro F1 {m['macro_f1']:.3f}")
-            if "referable_sensitivity" in m:
-                parts.append(f"referable-DR sensitivity {m['referable_sensitivity']:.1%}")
-            if "referable_specificity" in m:
-                parts.append(f"referable-DR specificity {m['referable_specificity']:.1%}")
-            text = ("On the held-out test set (15 % of the APTOS 2019 images, never used for training or tuning) the "
-                    "model achieved " + ", ".join(parts) + ".")
-            ext = ctx.external_metrics or {}
-            ext_qwk = ext.get("qwk", ext.get("quadratic_weighted_kappa"))
-            if ext_qwk is not None:
-                text += (f" On 35,126 images from a completely different dataset (EyePACS 2015, USA) it reached "
-                         f"accuracy {ext.get('accuracy', float('nan')):.1%}, quadratic weighted kappa {ext_qwk:.3f} and "
-                         f"referable-DR sensitivity {ext.get('referable_sensitivity', float('nan')):.1%}, which shows how "
-                         "well it generalises to other cameras and populations.")
-            return text + (" The neighbouring grades (mild vs moderate, severe vs proliferative) are the hardest to "
-                           "separate, which is also true for human graders.")
-        return ("Performance is measured on a held-out test split with accuracy, precision, recall, F1-score and the "
-                "quadratic weighted kappa. See the **About** tab for the exact numbers of the loaded model.")
+        m, ext = ctx.metrics or {}, ctx.external_metrics or {}
+        if not m:
+            return "You can find the measured accuracy on the **About** page."
+        per100 = lambda v: round(100 * v)
+        text = ("On new photos from the hospital it learned from, the AI found "
+                f"**{per100(m.get('referable_sensitivity', 0))} of every 100** eyes that need a specialist and correctly "
+                f"cleared **{per100(m.get('referable_specificity', 0))} of every 100** healthy eyes. It named the exact "
+                f"stage {per100(m.get('accuracy', 0))} times out of 100.")
+        if ext:
+            text += (" On photos from clinics in another country it found only "
+                     f"**{per100(ext.get('referable_sensitivity', 0))} of every 100** eyes that need a specialist, so "
+                     "it would need adapting before it could be used there.")
+        return text + " Neighbouring stages are the hardest to tell apart, for eye specialists too."
 
     def dataset(self, ctx: ChatContext) -> str:
-        return ("The model was trained on the **APTOS 2019 Blindness Detection** dataset from Kaggle (Aravind Eye "
-                "Hospital, India): 3,662 colour fundus photographs graded 0-4 by clinicians, using the version resized "
-                "to 224x224 pixels (kaggle.com/datasets/sovitrath/diabetic-retinopathy-224x224-2019-data). Duplicate "
-                "photographs were detected and removed before splitting. The data is imbalanced - about half of the "
-                "images show no DR and only 5 % show severe NPDR. The model was then tested, without any retraining, "
-                "on 35,126 images of the EyePACS 2015 dataset from the USA (external validation).")
+        return ("The AI learned from 3,662 retina photos taken at an eye hospital in India, each graded by eye "
+                "specialists (a public collection called APTOS 2019). Repeated copies of the same photo were removed "
+                "first. It was then tested on 35,126 photos from clinics in the USA that it had never seen.")
 
     def limitations(self, ctx: ChatContext) -> str:
-        return ("Limitations to keep in mind: the model was trained on ~3,600 images from one hospital network, so "
-                "it may perform worse on other cameras or populations; it cannot detect diabetic macular oedema or "
-                "other eye diseases; low-quality or badly-centred photographs reduce accuracy; and adjacent grades "
-                "are often confused. " + DISCLAIMER)
+        return ("Some things to keep in mind: it learned from one hospital, so it is less reliable on photos from "
+                "other cameras; it often rates severe disease as milder than it is; it cannot detect other eye "
+                "diseases, such as macular oedema or glaucoma; and blurry or dark photos make it less accurate. "
+                + DISCLAIMER)
 
     def fallback(self, ctx: ChatContext) -> str:
-        return ("I am not sure I understood that. " + self.help(ctx))
+        return "Sorry, I didn't quite get that. " + self.help(ctx)
