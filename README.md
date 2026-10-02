@@ -1,132 +1,115 @@
-# Diabetic Retinopathy Stage Detection with Transfer Learning
+# Diabetic Retinopathy Stage Detection with Transfer Learning and External Validation
 
 Computer Vision coursework - BSc (Hons) Computer Science, NIBM (Coventry University), batch BSCCOMP24.2P.
 
-A complete, reproducible pipeline that grades colour fundus photographs into the five stages of
-diabetic retinopathy (No DR, Mild, Moderate, Severe, Proliferative) using ImageNet-pretrained CNNs,
-plus a Streamlit screening application with Grad-CAM explanations and a built-in assistant.
+A reproducible pipeline that grades colour fundus photographs into the five stages of diabetic
+retinopathy (ICDR scale: No DR, Mild, Moderate, Severe, Proliferative) with an ImageNet-pretrained CNN,
+validates it on an independent dataset from another country, and serves it in a Streamlit screening
+application with Grad-CAM explanations and a built-in assistant.
 
 | | |
 |---|---|
-| **Dataset** | APTOS 2019 Blindness Detection, 224 px version - Kaggle `sovitrath/diabetic-retinopathy-224x224-2019-data` (3,662 images, CC0) |
-| **Framework** | TensorFlow 2 / Keras 3, OpenCV, scikit-learn, Streamlit |
-| **Main model** | EfficientNetB0 + Ben Graham preprocessing, two-phase transfer learning |
-| **Notebook** | [`notebooks/DR_Stage_Detection_Colab.ipynb`](notebooks/DR_Stage_Detection_Colab.ipynb) - runs everything on a free Colab GPU |
-| **Demo video** | *(link added in the report)* |
+| **Development data** | APTOS 2019, 224 px version - Kaggle `sovitrath/diabetic-retinopathy-224x224-2019-data` (Version 4, 3,662 images, CC0) |
+| **External test data** | EyePACS 2015, 224 px version - Kaggle `sovitrath/diabetic-retinopathy-2015-data-colored-resized` (35,126 images, CC0), never used for training or tuning |
+| **Final model** | EfficientNetB3 (ImageNet), two-phase fine-tuning, class weights, test-time augmentation |
+| **Main notebook** | `notebooks/` - the executed Kaggle notebook (Steps 1-11, GPU T4) |
+| **Framework** | TensorFlow 2.20 / Keras 3, OpenCV, scikit-learn, Streamlit |
+| **Links** | video, Kaggle notebook and hosted app: see the report |
 
----
+## Results
 
-## 1. Repository layout
+| Metric | APTOS 2019 test (internal, n = 523) | EyePACS 2015 (external, n = 35,126) |
+|---|---|---|
+| Accuracy | 0.809 | 0.688 |
+| Macro-F1 | 0.645 | 0.314 |
+| Quadratic weighted kappa | 0.900 | 0.388 |
+| Referable-DR sensitivity (grade >= 2) | 0.847 | 0.310 |
+| Referable-DR specificity | 0.963 | 0.945 |
+| Referable-DR AUC | 0.979 | 0.745 |
+| Within one grade | 0.962 | 0.833 |
+
+* **13 controlled experiments** (about 140 GPU minutes) chose the preprocessing, backbone, class-balancing
+  strategy and hyper-parameters on the validation set only; the test set was used once
+  (`results/experiments_summary.csv`, `figures/09_experiment_results.png`).
+* **Leakage audit**: a retinal-vessel similarity search found 148 duplicate photographs in APTOS, 43 with
+  conflicting grades; 176 images were removed before the stratified 70 / 15 / 15 split.
+* **External validation** shows a large drop caused by domain shift: the model under-grades EyePACS eyes.
+  A site-specific threshold restores 81 % sensitivity only at 49 % specificity
+  (`results/external_threshold_calibration.json`), so local retraining would be required for deployment.
+
+All figures are in `figures/`, all numbers in `results/`, and the full discussion is in the report.
+
+## Repository layout
 
 ```
 .
-├── notebooks/DR_Stage_Detection_Colab.ipynb   end-to-end notebook (Colab GPU)
-├── src/dr_detection/                          the reusable, commented package
-│   ├── config.py          all hyper-parameters, class names, dataset constants
-│   ├── preprocessing.py   border crop, resize, Ben Graham, CLAHE, unsharp, edge map
-│   ├── data.py            dataset discovery, robust label mapping, stratified split, tf.data
-│   ├── augmentation.py    on-the-fly augmentation, class weights, over-sampling
-│   ├── model.py           EfficientNet / ResNet50V2 / MobileNetV2 / DenseNet121 + head
-│   ├── train.py           two-phase training with callbacks, run_experiment()
-│   ├── evaluate.py        accuracy, P/R/F1, QWK, referable-DR metrics, all figures
-│   ├── gradcam.py         Grad-CAM explainability
-│   ├── visualize.py       EDA / preprocessing / augmentation figures
-│   └── utils.py           seeding, JSON I/O, timing, hardware info
-├── scripts/
-│   ├── download_data.py       Kaggle download + unzip
-│   ├── make_figures.py        EDA figures (no GPU needed)
-│   ├── train.py               train + evaluate one model from the CLI
-│   ├── compare_experiments.py preprocessing x backbone grid -> comparison table
-│   ├── predict.py             grade images from the CLI (+ Grad-CAM overlays)
-│   └── export_results.py      zip results/ + models/ for the report
+├── notebooks/                    Kaggle notebook (final, executed) and earlier development notebooks
+├── figures/                      every figure produced by the Kaggle notebook (Steps 3-11)
+├── results/                      metrics, histories and tables of every step and experiment
+│   └── experiments/<run>/        history.csv, curves.png and metrics.json of each training run
+├── models/
+│   ├── best_model.keras          final EfficientNetB3 classifier (raw 0-255 input, normalisation inside)
+│   └── model_metadata.json       preprocessing, TTA, metrics, datasets, environment
 ├── app/
-│   ├── streamlit_app.py   RetinaScreen demo (single image, batch, chatbot, model card)
-│   ├── chatbot.py         RetinaBot - rule-based assistant
-│   └── assets/samples/    sample fundus images for the demo
-├── models/                best_model.keras + model_metadata.json (created by training)
-├── results/               one folder per run: metrics.json, history.csv, figures, ...
-├── docs/                  report, video transcript, architecture diagram
+│   ├── streamlit_app.py          RetinaScreen prototype (screening, batch, RetinaBot, model card)
+│   ├── chatbot.py                RetinaBot - offline, rule-based assistant
+│   └── assets/samples/           real APTOS test images and EyePACS images (true grade in the file name)
+├── src/dr_detection/
+│   ├── kaggle_pipeline.py        the exact preprocessing used by the final model (shared with the app)
+│   └── ...                       reusable package for command-line experiments (scripts/)
+├── scripts/                      command-line training, prediction and figure scripts
+├── docs/DEPLOYMENT.md            cloud hosting instructions (Streamlit Community Cloud, Hugging Face)
 └── requirements.txt
 ```
 
-## 2. Quick start
-
-### Option A - Google Colab (recommended, ~10 min for the main model)
-
-1. Open `notebooks/DR_Stage_Detection_Colab.ipynb` in Colab, choose **Runtime -> T4 GPU**.
-2. Set `REPO_URL` in the first cell to this repository.
-3. Run all cells; upload your `kaggle.json` when prompted.
-4. The last cell downloads `dr_results_bundle.zip` (results, model, sample images) - unzip it into the repository root.
-
-### Option B - locally
+## Run the prototype
 
 ```bash
 pip install -r requirements.txt
-python scripts/download_data.py                 # needs ~/.kaggle/kaggle.json
-python scripts/make_figures.py                  # EDA + preprocessing figures
-python scripts/train.py --save-best             # main experiment (GPU recommended)
-python scripts/compare_experiments.py           # optional: full experiment grid
-streamlit run app/streamlit_app.py              # demo application
+streamlit run app/streamlit_app.py
 ```
 
-A 90-second CPU smoke test of the whole pipeline: `python scripts/train.py --quick-test`.
+The app opens at http://localhost:8501. Pick a bundled sample image or upload a fundus photograph to see
+the predicted grade, the probability of every grade, the Grad-CAM heat-map, the referral advice, and the
+preprocessing stages. The model and its metadata are already included, so no training is needed.
 
-## 3. Pipeline
+## Reproduce the training
 
-1. **Data** - folders are scanned into a DataFrame with a robust label map (the Kaggle folder is
-   spelt `Proliferate_DR`; a naive map silently drops those 295 images). Labels are cross-checked
-   against `train.csv`. Stratified 70 / 10 / 20 split with a fixed seed so every experiment shares
-   the same test images.
-2. **Preprocessing** - black-border crop -> resize 224 px -> Ben Graham Gaussian-blur subtraction
-   (`4*img - 4*blur + 128`) with a circular mask. CLAHE, unsharp masking and raw are available
-   for comparison. Images are preprocessed once and cached as `.npz`.
-3. **Augmentation & balancing** - Keras preprocessing layers on the GPU (flips, rotation, zoom,
-   shift, brightness, contrast), training split only. Inverse-frequency class weights in the loss;
-   random over-sampling available with `--oversample`.
-4. **Model** - ImageNet backbone (`include_top=False`) -> GAP -> Dropout -> Dense 512 -> Dropout ->
-   Dense 256 -> Dense 5 softmax. Backbone-specific input normalisation is part of the graph, so
-   the saved model accepts raw 0-255 images.
-5. **Training** - phase 1: frozen backbone, Adam 1e-4; phase 2: top 30 layers un-frozen (BatchNorm
-   frozen), Adam 1e-5. EarlyStopping, ReduceLROnPlateau, ModelCheckpoint, CSVLogger.
-6. **Evaluation** - accuracy, per-class / macro / weighted precision-recall-F1, quadratic weighted
-   kappa, one-vs-rest ROC-AUC, confusion matrices, *referable-DR* (grade >= 2) sensitivity /
-   specificity / AUC, within-one-grade accuracy, most-confident-error gallery, Grad-CAM grid.
+1. Open the notebook in `notebooks/` on Kaggle, attach both datasets above (**Add Input**), and set
+   **Accelerator: GPU T4 x2** and **Internet: On** (needed for the ImageNet weights).
+2. Run all cells. Steps 1-8 take about 10 minutes, the 13 experiments of Step 9 about 2.5 hours, and the
+   evaluation and external validation (Steps 10-11) about 20 minutes.
+3. Download `dr_results_bundle.zip` from the notebook output and unzip it into this repository.
 
-## 4. Results
+All random generators are seeded (`SEED = 42`), the split is stored in `results/split_aptos2019.csv`, and
+the configuration of every run is stored with its results.
 
-Numbers are produced by the notebook / scripts and stored in `results/<run>/metrics.json`;
-`results/experiments_comparison.csv` collects every run. See the report for the discussion.
+## Pipeline summary
 
-## 5. Demo application
+1. **Data** - folder labels mapped to ICDR grades (including the `Proliferate_DR` spelling), cross-checked
+   with the official CSV files; duplicate audit; stratified 70 / 15 / 15 split.
+2. **Preprocessing** - crop black border, pad to square, resize 224 px, retina mask. CLAHE, a measured noise
+   filter, unsharp masking and Ben Graham's method were evaluated; after fine-tuning, no extra filtering
+   performed best.
+3. **Augmentation and balancing** - on-the-fly flips, rotation, zoom, shift, brightness and contrast (training
+   only); class weights, balanced sampling and no balancing compared.
+4. **Model** - EfficientNetB0/B3, ResNet50V2, DenseNet121 compared; head GAP -> Dense 512 -> Dense 256 ->
+   softmax(5); phase 1 frozen backbone (Adam 1e-3), phase 2 full fine-tuning with BatchNorm frozen (Adam 1e-4).
+5. **Training strategy** - early stopping on validation QWK, ReduceLROnPlateau, model checkpointing.
+6. **Evaluation** - classification report, confusion matrices, ROC, QWK, referable-DR sensitivity and
+   specificity, error analysis, calibration (ECE), Grad-CAM, external validation, site calibration.
 
-`streamlit run app/streamlit_app.py`
+## Key references
 
-* **Screen an image** - upload or pick a sample -> preprocessing preview, grade probabilities,
-  Grad-CAM heat-map, referral recommendation (ICDR scale), inference time.
-* **Batch screening** - grade a folder of images, download a CSV report.
-* **RetinaBot** - offline, rule-based assistant that explains the result, the DR stages, the
-  heat-map and the model's limitations (no API keys, no hallucinated medical advice).
-* **Model card** - dataset, architecture, metrics, intended use, limitations, ethics.
-
-Deployment files for Hugging Face Spaces are described in `docs/DEPLOYMENT.md`.
-
-## 6. Reproducibility
-
-Seeds are fixed (`Config.seed = 42`) for Python, NumPy and TensorFlow; the exact configuration
-of every run is written to `results/<run>/config.json` together with the hardware used.
-
-## 7. References
-
-* Asia Pacific Tele-Ophthalmology Society (2019). *APTOS 2019 Blindness Detection*. Kaggle.
-* Graham, B. (2015). *Kaggle Diabetic Retinopathy Detection competition report*. University of Warwick.
-* Gulshan, V. et al. (2016). Development and validation of a deep learning algorithm for detection
-  of diabetic retinopathy in retinal fundus photographs. *JAMA, 316*(22), 2402-2410.
-* Selvaraju, R. R. et al. (2017). Grad-CAM: Visual explanations from deep networks via
-  gradient-based localization. *ICCV 2017*.
-* Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking model scaling for convolutional neural
-  networks. *ICML 2019*.
-* Wilkinson, C. P. et al. (2003). Proposed international clinical diabetic retinopathy and diabetic
-  macular edema disease severity scales. *Ophthalmology, 110*(9), 1677-1682.
+* Asia Pacific Tele-Ophthalmology Society (2019). *APTOS 2019 Blindness Detection* [Data set]. Kaggle.
+* Gulshan, V. et al. (2016). Development and validation of a deep learning algorithm for detection of
+  diabetic retinopathy in retinal fundus photographs. *JAMA, 316*(22), 2402-2410.
+* Selvaraju, R. R. et al. (2017). Grad-CAM: Visual explanations from deep networks via gradient-based
+  localization. *ICCV 2017*.
+* Tan, M., & Le, Q. V. (2019). EfficientNet: Rethinking model scaling for convolutional neural networks.
+  *ICML 2019*.
+* Wilkinson, C. P. et al. (2003). Proposed international clinical diabetic retinopathy and diabetic macular
+  edema disease severity scales. *Ophthalmology, 110*(9), 1677-1682.
 
 ---
 *This software is a university coursework prototype and is not a medical device.*

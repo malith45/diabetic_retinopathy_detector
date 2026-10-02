@@ -1,0 +1,21 @@
+{
+  "crop": "bounding box of pixels > 10",
+  "pad": "black, to square",
+  "size": 224,
+  "clahe": {
+    "space": "LAB L-channel",
+    "clip_limit": 2.0,
+    "tiles": 8
+  },
+  "noise_filter": "Gaussian s=0.5",
+  "noise_rule_min_detail_pct": 90.0,
+  "edge_operator": "Unsharp mask",
+  "ben_graham_sigma": 10,
+  "mask_erosion_px": 5,
+  "methods": [
+    "raw",
+    "clahe",
+    "enhanced",
+    "ben_graham"
+  ]
+}

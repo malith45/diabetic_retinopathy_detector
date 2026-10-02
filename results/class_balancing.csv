@@ -1,0 +1,6 @@
+grade,training images,share of images %,class weight,share of loss with weights %,share of batch with balanced sampling %
+No DR,1258,51.6,0.388,20.0,20.0
+Mild NPDR,236,9.7,2.068,20.0,20.0
+Moderate NPDR,645,26.4,0.757,20.0,20.0
+Severe NPDR,117,4.8,4.171,20.0,20.0
+Proliferative DR,184,7.5,2.652,20.0,20.0

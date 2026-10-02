@@ -1,0 +1,4 @@
+operator,edge gain,noise gain,edge gain per noise gain,selected
+Sharpening kernel,2.646,7.24,0.365,
+Laplacian (w=0.5),1.812,4.188,0.433,
+Unsharp mask,1.767,1.986,0.89,<== selected

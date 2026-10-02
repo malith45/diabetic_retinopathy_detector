@@ -1,0 +1,15 @@
+{
+  "accuracy": 0.6878095997266982,
+  "macro_precision": 0.34466976465007254,
+  "macro_recall": 0.32463063172504947,
+  "macro_f1": 0.31360191884332395,
+  "weighted_f1": 0.6595899929454773,
+  "qwk": 0.38770331205624253,
+  "referable_sensitivity": 0.3097628400989379,
+  "referable_specificity": 0.9452093582982338,
+  "referable_auc": 0.745142994565602,
+  "within_one_grade_accuracy": 0.8325172237089336,
+  "mean_absolute_grade_error": 0.5234014689973239,
+  "tta": true,
+  "n_external": 35126
+}

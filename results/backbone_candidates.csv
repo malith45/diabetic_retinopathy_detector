@@ -1,0 +1,5 @@
+backbone,backbone layers,total parameters (M),feature-map size,ImageNet top-1 %
+EfficientNetB0,238,4.84,7x7x1280,77.1
+EfficientNetB3,385,11.7,7x7x1536,81.6
+ResNet50V2,190,24.75,7x7x2048,76.0
+DenseNet121,427,7.69,7x7x1024,75.0

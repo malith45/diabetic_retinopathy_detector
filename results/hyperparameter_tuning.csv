@@ -1,0 +1,6 @@
+experiment,fine-tuning lr,dropout,batch,unfrozen layers,val QWK,val macro-F1,val accuracy,epochs
+"reference (lr 1e-4, dropout 0.3, batch 32, all layers)",1e-04,0.3,32,all,0.9155,0.6668,0.8337,22
+fine-tuning lr 1e-5,1e-05,0.3,32,all,0.8387,0.5887,0.7572,12
+dropout 0.5,1e-04,0.5,32,all,0.9118,0.6846,0.8203,23
+batch size 16,1e-04,0.3,16,all,0.9029,0.656,0.8107,16
+fine-tune top 30 layers only,1e-04,0.3,32,30,0.8191,0.5678,0.7304,12

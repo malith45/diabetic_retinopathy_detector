@@ -1,0 +1,8 @@
+{
+  "flip": "horizontal and vertical",
+  "rotation_deg": 20,
+  "zoom": 0.1,
+  "translation": 0.05,
+  "brightness": 0.1,
+  "contrast": 0.1
+}

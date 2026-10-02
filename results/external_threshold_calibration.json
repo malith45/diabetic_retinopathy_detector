@@ -1,0 +1,24 @@
+{
+  "target_sensitivity": 0.8,
+  "local_threshold": 1.1130129678349476e-05,
+  "calibration_images": 7024,
+  "evaluation_images": 28102,
+  "EyePACS eval 80 %: default rule (argmax grade >= 2)": {
+    "sensitivity": 0.3110386079390973,
+    "specificity": 0.9450520256807615,
+    "PPV": 0.5803178897531281,
+    "referral rate": 0.10522382748558821
+  },
+  "EyePACS eval 80 %: local threshold P(ref) >= 0.000": {
+    "sensitivity": 0.811310494834149,
+    "specificity": 0.49054682311268544,
+    "PPV": 0.2800650732073583,
+    "referral rate": 0.5687139705359049
+  },
+  "APTOS test: default rule (reference)": {
+    "sensitivity": 0.8472906403940886,
+    "specificity": 0.9625,
+    "PPV": 0.9347826086956522,
+    "referral rate": 0.35181644359464626
+  }
+}

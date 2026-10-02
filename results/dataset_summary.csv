@@ -1,0 +1,3 @@
+dataset,role,images,No DR,Mild NPDR,Moderate NPDR,Severe NPDR,Proliferative DR,checked,unreadable,resolution (most common),channels
+APTOS 2019,train / validation / test,3662,1805,370,999,193,295,3662,0,224x224 (100.0%),[3]
+EyePACS 2015,external test only,35126,25810,2443,5292,873,708,2000,0,224x224 (100.0%),[3]

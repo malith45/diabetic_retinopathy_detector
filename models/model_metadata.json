@@ -1,0 +1,92 @@
+{
+  "run_name": "EfficientNetB3_raw_class_weights_ft1e-04_do0.3_bs32_ufall",
+  "backbone": "EfficientNetB3",
+  "preprocess": "raw",
+  "img_size": 224,
+  "tta": true,
+  "class_names": [
+    "No_DR",
+    "Mild",
+    "Moderate",
+    "Severe",
+    "Proliferative_DR"
+  ],
+  "class_labels": [
+    "No DR",
+    "Mild NPDR",
+    "Moderate NPDR",
+    "Severe NPDR",
+    "Proliferative DR"
+  ],
+  "referable_threshold": 2,
+  "preprocessing_spec": {
+    "crop": "bounding box of pixels > 10",
+    "pad": "black, to square",
+    "size": 224,
+    "clahe": {
+      "space": "LAB L-channel",
+      "clip_limit": 2.0,
+      "tiles": 8
+    },
+    "noise_filter": "Gaussian s=0.5",
+    "noise_rule_min_detail_pct": 90.0,
+    "edge_operator": "Unsharp mask",
+    "ben_graham_sigma": 10,
+    "mask_erosion_px": 5,
+    "methods": [
+      "raw",
+      "clahe",
+      "enhanced",
+      "ben_graham"
+    ]
+  },
+  "training_config": {
+    "backbone": "EfficientNetB3",
+    "method": "raw",
+    "balance": "class_weights",
+    "lr_head": 0.001,
+    "lr_ft": 0.0001,
+    "dropout": 0.3,
+    "batch": 32,
+    "unfreeze": "all",
+    "epochs_head": 5,
+    "epochs_ft": 20,
+    "patience": 5
+  },
+  "metrics": {
+    "accuracy": 0.8087954110898662,
+    "macro_precision": 0.6444513009690304,
+    "macro_recall": 0.6545995620164988,
+    "macro_f1": 0.645382385168382,
+    "weighted_f1": 0.8095382859773393,
+    "qwk": 0.8995131059051167,
+    "within_one_grade_accuracy": 0.9617590822179732,
+    "referable_sensitivity": 0.8472906403940886,
+    "referable_specificity": 0.9625,
+    "referable_auc": 0.9793103448275863
+  },
+  "external_metrics": {
+    "accuracy": 0.6878095997266982,
+    "macro_precision": 0.34466976465007254,
+    "macro_recall": 0.32463063172504947,
+    "macro_f1": 0.31360191884332395,
+    "weighted_f1": 0.6595899929454773,
+    "qwk": 0.38770331205624253,
+    "within_one_grade_accuracy": 0.8325172237089336,
+    "referable_sensitivity": 0.3097628400989379,
+    "referable_specificity": 0.9452093582982338,
+    "referable_auc": 0.745142994565602
+  },
+  "datasets": {
+    "development": "APTOS 2019 (Kaggle sovitrath/diabetic-retinopathy-224x224-2019-data, v4)",
+    "external": "EyePACS 2015 (Kaggle sovitrath/diabetic-retinopathy-2015-data-colored-resized)"
+  },
+  "trained_on": {
+    "tensorflow": "2.20.0",
+    "keras": "3.13.2",
+    "gpu": [
+      "Tesla T4",
+      "Tesla T4"
+    ]
+  }
+}

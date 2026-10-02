@@ -1,0 +1,8 @@
+filter,noise reduction %,lesion detail kept %,selected
+Gaussian s=0.5,54.5,91.2,<== selected
+Gaussian s=1.0,91.0,68.5,
+Gaussian s=2.0,92.7,34.5,
+Median 3x3,70.7,82.7,
+Median 5x5,84.0,57.0,
+Bilateral d=5,47.6,89.4,
+Bilateral d=9,72.2,60.9,

@@ -1,0 +1,17 @@
+{
+  "accuracy": 0.8087954110898662,
+  "macro_precision": 0.6444513009690304,
+  "macro_recall": 0.6545995620164988,
+  "macro_f1": 0.645382385168382,
+  "weighted_f1": 0.8095382859773393,
+  "qwk": 0.8995131059051167,
+  "referable_sensitivity": 0.8472906403940886,
+  "referable_specificity": 0.9625,
+  "referable_auc": 0.9793103448275863,
+  "within_one_grade_accuracy": 0.9617590822179732,
+  "mean_absolute_grade_error": 0.2332695984703633,
+  "expected_calibration_error": 0.09731928374525695,
+  "gradcam_energy_inside_retina": 0.9199817776679993,
+  "tta": true,
+  "n_test": 523
+}
