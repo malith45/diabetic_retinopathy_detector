@@ -7,17 +7,18 @@ Requires:         models/best_model.keras and models/model_metadata.json
 
 Tabs
 ----
-1. Screen a photo   - upload a fundus photo or pick a real test photo -> stage on the
-                      ICDR scale, urgency and what to do next. Collapsed sections show
-                      the Grad-CAM heat-map, the stage probabilities and technical details
-2. Batch screening  - grade many images at once, sorted by urgency, with a CSV report
-3. Ask RetinaBot    - rule-based assistant that explains results and DR stages
-4. About the model  - accuracy in plain language; model card, metrics and evidence
-                      figures in collapsed sections
+1. Screen a photo   - drop a fundus photo or tap a sample -> grade, stage, urgency and what
+                      to do next; a switch fades the Grad-CAM heat-map over the photo;
+                      probabilities and technical details under "More details"
+2. Batch screening  - grade many images at once, most urgent first, with a CSV report
+3. RetinaBot        - rule-based assistant that explains results and DR stages
+4. About            - accuracy in plain language; model card, metrics and evidence figures
+                      in collapsed sections
 """
 
 from __future__ import annotations
 
+import base64
 import io
 import re
 import sys
@@ -180,80 +181,172 @@ def screening_summary(name: str, res: dict, meta: dict) -> str:
 # --------------------------------------------------------------------------- #
 # Presentation helpers (HTML is generated here; user-supplied text is escaped)
 # --------------------------------------------------------------------------- #
+FRIENDLY = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"]
+
+# Small line icons (Lucide, ISC licence) used in the HTML parts of the page
+ICON = {
+    "eye": '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+    "upload": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+    "pulse": '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    "check": '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    "next": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    "alert": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+}
+
+
+def icon(name: str, size: int = 20, colour: str = "currentColor") -> str:
+    return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{colour}" stroke-width="2" '
+            f'stroke-linecap="round" stroke-linejoin="round">{ICON[name]}</svg>')
+
+
 CSS = """
 <style>
-[data-testid="stMainBlockContainer"], .block-container {padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1200px;}
-[data-testid="stHeader"] {background: transparent;}
-.stTabs [data-baseweb="tab-list"] {gap: 4px;}
-.stTabs [data-baseweb="tab"] {height: 46px; padding: 0 16px;}
-.stTabs [data-baseweb="tab"] p {font-size: 0.98rem; font-weight: 600;}
-[data-testid="stExpander"] summary p {font-weight: 600;}
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] p, button p, input, textarea,
+[data-testid="stWidgetLabel"] p, [data-testid="stCaptionContainer"] {font-family:'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif !important;}
+.stApp {background: radial-gradient(1100px 480px at 0% -10%, rgba(20,184,166,.13), transparent 60%),
+                    radial-gradient(900px 420px at 100% -5%, rgba(14,165,233,.10), transparent 60%), #F7FAFC;}
+[data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], #MainMenu, footer {display:none !important;}
+[data-testid="stMainBlockContainer"], .block-container {padding-top: 1.4rem; padding-bottom: 2.5rem; max-width: 1120px;}
 
-.rs-hero {display:flex; align-items:center; gap:16px; padding:14px 22px; margin:0 0 4px; border-radius:16px; color:#fff;
-  background:linear-gradient(120deg,#0F766E 0%,#115E59 58%,#164E63 100%); box-shadow:0 8px 24px rgba(15,118,110,.16);}
-.rs-logo {font-size:2rem; line-height:1; background:rgba(255,255,255,.14); border-radius:12px; padding:8px 10px;}
-.rs-title {font-size:1.55rem; font-weight:750; letter-spacing:-.02em; line-height:1.15;}
-.rs-sub {color:#CCFBF1; margin-top:2px; font-size:.98rem;}
+/* top bar */
+.rs-top {display:flex; align-items:center; justify-content:space-between; padding:0 2px 16px;}
+.rs-brand {display:flex; align-items:center; gap:12px;}
+.rs-mark {width:42px; height:42px; border-radius:13px; display:grid; place-items:center; color:#fff;
+  background:linear-gradient(135deg,#14B8A6,#0F766E); box-shadow:0 6px 16px rgba(15,118,110,.30);}
+.rs-brand b {display:block; font-size:1.15rem; color:#0F172A; letter-spacing:-.01em; line-height:1.2;}
+.rs-brand small {color:#64748B; font-size:.8rem;}
+.rs-proto {font-size:.74rem; color:#0F766E; background:#CCFBF1; padding:5px 11px; border-radius:999px; font-weight:700;}
 
-.rs-step-h {display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.05rem; color:#0F172A; margin:2px 0 8px;}
-.rs-step-h span {display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:999px;
-  background:#0F766E; color:#fff; font-size:.82rem; flex:none;}
-.rs-muted {color:#64748B; font-size:.88rem;}
+/* pill navigation (react-aria tabs in Streamlit >= 1.5x, BaseWeb tabs in older versions) */
+.stTabs [role="tablist"] {gap:4px; background:#fff; padding:5px; border-radius:999px; border:1px solid #E2E8F0 !important;
+  box-shadow:0 1px 2px rgba(15,23,42,.05), 0 6px 18px rgba(15,23,42,.06); width:fit-content; max-width:100%; margin:0 auto 12px;
+  overflow-x:auto;}
+.stTabs [role="tab"] {height:40px; padding:0 18px; border-radius:999px; background:transparent; white-space:nowrap;
+  display:flex; align-items:center; border:none !important; transition:background .15s;}
+.stTabs [role="tab"]:hover {background:#F1F5F9;}
+.stTabs [role="tab"] p {font-size:.93rem; font-weight:600; color:#475569; margin:0;}
+.stTabs [role="tab"][aria-selected="true"] {background:#0F766E;}
+.stTabs [role="tab"][aria-selected="true"] p, .stTabs [role="tab"][aria-selected="true"] span {color:#fff !important;}
+.stTabs [role="tab"] > div:not([data-testid]), .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] {display:none !important;}
 
-.rs-how {display:grid; gap:10px;}
-.rs-how div {display:flex; gap:12px; align-items:flex-start; background:#fff; border:1px solid #E2E8F0; border-radius:12px; padding:12px 14px;}
-.rs-how i {font-style:normal; font-size:1.4rem; line-height:1.2;}
-.rs-how b {display:block; color:#0F172A;}
-.rs-how span {color:#64748B; font-size:.86rem;}
-.rs-how p {margin:0;}
+/* buttons */
+.stButton button, .stDownloadButton button {border-radius:999px; font-weight:600; min-height:42px; padding:0 20px; transition:all .15s ease;}
+[data-testid="stBaseButton-primary"] {box-shadow:0 6px 16px rgba(15,118,110,.25);}
+[data-testid="stBaseButton-primary"]:hover {transform:translateY(-1px); box-shadow:0 10px 22px rgba(15,118,110,.30);}
+[data-testid="stBaseButton-secondary"] {background:#fff; border:1px solid #E2E8F0;}
+[data-testid="stBaseButton-secondary"]:hover {border-color:#0F766E; color:#0F766E;}
 
-.rs-result {background:#fff; border:1px solid #E2E8F0; border-left:7px solid var(--g); border-radius:14px;
-  padding:18px 22px 16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(15,23,42,.05);}
-.rs-kicker {font-size:.72rem; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#64748B;}
-.rs-grade {font-size:1.6rem; font-weight:750; color:#0F172A; letter-spacing:-.01em; margin:2px 0 10px; line-height:1.25;}
-.rs-grade em {font-style:normal; color:var(--g);}
-.rs-chip {display:inline-block; padding:4px 12px; margin:0 6px 6px 0; border-radius:999px; font-size:.84rem; font-weight:650;}
-.rs-advice {color:#1E293B; margin:8px 0 2px; font-size:1rem; background:#F8FAFC; border-radius:10px; padding:10px 12px;}
-.rs-warn {background:#FFF7ED; border:1px solid #FED7AA; color:#9A3412; border-radius:10px; padding:8px 12px; font-size:.88rem; margin-top:10px;}
-.rs-scale {display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:16px; align-items:end;}
-.rs-seg .bar {height:8px; border-radius:6px; opacity:.25;}
+/* drag-and-drop area */
+[data-testid="stFileUploaderDropzone"] {min-height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:10px; padding:26px; background:#fff; border:2px dashed #99F6E4; border-radius:22px; transition:all .2s ease;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);}
+[data-testid="stFileUploaderDropzone"]:hover {border-color:#0F766E; background:#F0FDFA;}
+[data-testid="stFileUploaderDropzone"]::before {content:"Drag and drop a retina photo here"; display:block; padding-top:62px;
+  font-weight:700; font-size:1.05rem; color:#0F172A; text-align:center;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='52' viewBox='0 0 24 24' fill='none' stroke='%230F766E' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' y1='3' x2='12' y2='15'/%3E%3C/svg%3E") no-repeat top center;}
+[data-testid="stFileUploaderDropzone"] {flex-direction:column !important; align-items:center !important; text-align:center;}
+[data-testid="stFileUploaderDropzone"] > span, [data-testid="stFileUploaderDropzoneInstructions"] {align-self:center !important;}
+.st-key-batch_top [data-testid="stFileUploaderDropzone"]::before {content:"Drag and drop retina photos here";}
+[data-testid="stFileUploaderDropzoneInstructions"] span {font-size:0;}
+[data-testid="stFileUploaderDropzoneInstructions"] span::after {content:"PNG or JPG · the photo is not stored"; font-size:.82rem; color:#64748B;}
+[data-testid="stFileUploaderDropzone"] [data-testid="stBaseButton-secondary"] {background:#0F766E; color:#fff; border:none;
+  box-shadow:0 6px 16px rgba(15,118,110,.25);}
+[data-testid="stFileUploaderDropzone"] [data-testid="stBaseButton-secondary"] p,
+[data-testid="stFileUploaderDropzone"] [data-testid="stBaseButton-secondary"] span {color:#fff;}
+
+/* expanders */
+[data-testid="stExpander"] details {border:1px solid #E2E8F0; border-radius:18px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04);}
+[data-testid="stExpander"] summary p {font-weight:600;}
+
+/* landing */
+.st-key-landing, .st-key-batch_top {width:100%; max-width:760px; margin:0 auto;}
+.rs-hero {text-align:center; padding:14px 0 18px;}
+.rs-hero .t {font-size:2.35rem; line-height:1.15; font-weight:800; letter-spacing:-.035em; color:#0F172A; margin-bottom:10px;}
+.rs-hero .t span {background:linear-gradient(90deg,#0F766E,#0EA5E9); -webkit-background-clip:text; background-clip:text; color:transparent;}
+.rs-hero p {color:#475569; font-size:1.04rem; max-width:560px; margin:0 auto;}
+.rs-divider {display:flex; align-items:center; gap:14px; color:#64748B; font-size:.86rem; font-weight:600; margin:22px 0 10px;}
+.rs-divider::before, .rs-divider::after {content:""; flex:1; height:1px; background:#E2E8F0;}
+.rs-feats {display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-top:26px;}
+.rs-feat {display:flex; gap:12px; align-items:flex-start; background:rgba(255,255,255,.7); border:1px solid #E2E8F0; border-radius:16px; padding:14px;}
+.rs-feat .ic {flex:none; width:38px; height:38px; border-radius:11px; display:grid; place-items:center; background:#CCFBF1; color:#0F766E;}
+.rs-feat b {display:block; color:#0F172A; font-size:.95rem;}
+.rs-feat span {color:#64748B; font-size:.84rem;}
+
+/* clickable sample photos: the (invisible) button covers the whole thumbnail */
+.st-key-samples [data-testid="stHorizontalBlock"], .st-key-samples_more [data-testid="stHorizontalBlock"] {flex-wrap:nowrap; gap:10px;}
+.st-key-samples [data-testid="stColumn"], .st-key-samples_more [data-testid="stColumn"] {position:relative; min-width:0;}
+.st-key-samples [class*="st-key-pick_"], .st-key-samples_more [class*="st-key-pick_"] {position:absolute; inset:0; z-index:3;}
+.st-key-samples [class*="st-key-pick_"] .stButton, .st-key-samples [class*="st-key-pick_"] button,
+.st-key-samples_more [class*="st-key-pick_"] .stButton, .st-key-samples_more [class*="st-key-pick_"] button {width:100%; height:100%; opacity:0; cursor:pointer;}
+.st-key-samples img, .st-key-samples_more img {border-radius:16px; transition:transform .2s ease, box-shadow .2s ease; box-shadow:0 2px 6px rgba(15,23,42,.10);}
+.st-key-samples [data-testid="stColumn"]:hover img, .st-key-samples_more [data-testid="stColumn"]:hover img {transform:translateY(-4px); box-shadow:0 12px 26px rgba(15,23,42,.20);}
+
+/* result */
+.rs-card {background:#fff; border:1px solid #E2E8F0; border-radius:22px; padding:22px; box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 30px rgba(15,23,42,.06);}
+.rs-res-head {display:flex; align-items:center; gap:18px;}
+.rs-ring {flex:none; width:118px; text-align:center;}
+.rs-ring small {display:block; color:#64748B; font-size:.8rem; font-weight:600; margin-top:2px;}
+.rs-kicker {font-size:.72rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#64748B;}
+.rs-stage {font-size:1.55rem; font-weight:800; letter-spacing:-.02em; color:#0F172A; line-height:1.2; margin:3px 0 10px;}
+.rs-pill {display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; font-size:.84rem; font-weight:700;}
+.rs-next {display:flex; gap:12px; margin-top:18px; padding:14px 16px; border-radius:16px; background:var(--gbg);}
+.rs-next .ic {flex:none; width:34px; height:34px; border-radius:10px; display:grid; place-items:center; background:var(--g); color:#fff;}
+.rs-next b {display:block; color:#0F172A; margin-bottom:2px;}
+.rs-next p {margin:0; color:#334155; font-size:.95rem; line-height:1.5;}
+.rs-warn {display:flex; gap:10px; align-items:center; margin-top:12px; background:#FFF7ED; border:1px solid #FED7AA; color:#9A3412;
+  border-radius:14px; padding:10px 14px; font-size:.88rem;}
+.rs-scale {display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:20px; align-items:end;}
+.rs-seg .bar {height:8px; border-radius:6px; opacity:.22;}
 .rs-seg.on .bar {height:14px; opacity:1;}
-.rs-seg .lbl {font-size:.72rem; color:#94A3B8; text-align:center; margin-top:5px; line-height:1.2;}
+.rs-seg .lbl {font-size:.74rem; color:#94A3B8; text-align:center; margin-top:6px;}
 .rs-seg.on .lbl {color:#0F172A; font-weight:700;}
 
-.rs-photo-bar {display:flex; align-items:center; gap:8px; color:#334155; font-size:.92rem; padding:4px 0;}
+/* photo with an instant heat-map switch (pure CSS, no reload) */
+.rs-viewer {position:relative;}
+.rs-viewer input {position:absolute; opacity:0; pointer-events:none;}
+.rs-imgs {position:relative; border-radius:22px; overflow:hidden; box-shadow:0 10px 30px rgba(15,23,42,.14); background:#000;}
+.rs-imgs img {display:block; width:100%; height:auto;}
+.rs-imgs .heat {position:absolute; inset:0; opacity:0; transition:opacity .35s ease;}
+.rs-viewer input:checked ~ .rs-imgs .heat {opacity:1;}
+.rs-switch {display:flex; align-items:center; gap:10px; margin-top:14px; cursor:pointer; font-weight:600; color:#0F172A; font-size:.95rem; user-select:none;}
+.rs-switch .track {width:44px; height:24px; border-radius:999px; background:#CBD5E1; position:relative; transition:background .2s; flex:none;}
+.rs-switch .track::after {content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .2s;}
+.rs-viewer input:checked ~ .rs-switch .track {background:#0F766E;}
+.rs-viewer input:checked ~ .rs-switch .track::after {transform:translateX(20px);}
+.rs-heat-note {display:none; color:#64748B; font-size:.84rem; margin-top:6px;}
+.rs-viewer input:checked ~ .rs-heat-note {display:block;}
 
-.rs-prob {display:grid; grid-template-columns:150px 1fr 56px; align-items:center; gap:12px; margin:8px 0; font-size:.9rem; color:#475569;}
+/* tiles, probability bars, legends */
+.rs-tiles {display:grid; gap:10px; margin:8px 0 14px;}
+.rs-tile {background:#fff; border:1px solid #E2E8F0; border-radius:16px; padding:14px 16px; box-shadow:0 1px 2px rgba(15,23,42,.04);}
+.rs-tile .v {font-size:1.45rem; font-weight:800; color:#0F172A; line-height:1.2; letter-spacing:-.02em;}
+.rs-tile .l {font-size:.8rem; color:#64748B; margin-top:2px;}
+.rs-prob {display:grid; grid-template-columns:130px 1fr 56px; align-items:center; gap:12px; margin:10px 0; font-size:.92rem; color:#475569;}
 .rs-prob b {text-align:right; font-weight:600; color:#334155;}
-.rs-prob.on {color:#0F172A; font-weight:700;}
-.rs-prob.on b {color:#0F172A; font-weight:750;}
+.rs-prob.on, .rs-prob.on b {color:#0F172A; font-weight:800;}
 .rs-track {height:10px; background:#EEF2F6; border-radius:999px; overflow:hidden;}
 .rs-track div {height:100%; border-radius:999px;}
-
-.rs-tiles {display:grid; gap:8px; margin:6px 0 10px;}
-.rs-tile {background:#fff; border:1px solid #E2E8F0; border-radius:12px; padding:10px 12px;}
-.rs-tile .v {font-size:1.3rem; font-weight:750; color:#0F172A; line-height:1.2;}
-.rs-tile .l {font-size:.76rem; color:#64748B; margin-top:2px;}
-
 .rs-dist {display:flex; height:16px; border-radius:999px; overflow:hidden; margin:4px 0 8px; background:#EEF2F6;}
 .rs-legend span {display:inline-flex; align-items:center; gap:6px; margin:0 14px 4px 0; font-size:.82rem; color:#475569;}
 .rs-legend i {width:10px; height:10px; border-radius:3px; display:inline-block;}
+.rs-section {font-size:1.3rem; font-weight:800; letter-spacing:-.02em; color:#0F172A; margin:6px 0 4px;}
 
-.rs-context {background:#F0FDFA; border:1px solid #99F6E4; color:#115E59; border-radius:12px; padding:10px 14px; font-size:.92rem;}
-.rs-context.muted {background:#F8FAFC; border-color:#E2E8F0; color:#475569;}
-.rs-footer {text-align:center; color:#94A3B8; font-size:.8rem; margin-top:28px;}
+/* chat */
+[data-testid="stChatMessage"] {background:#fff; border:1px solid #E2E8F0; border-radius:18px; padding:14px 16px; box-shadow:0 1px 2px rgba(15,23,42,.04);}
+.rs-context {display:flex; gap:10px; align-items:center; background:#F0FDFA; border:1px solid #99F6E4; color:#115E59; border-radius:16px; padding:12px 16px; font-size:.93rem;}
+.rs-context.muted {background:#fff; border-color:#E2E8F0; color:#475569;}
+.rs-footer {text-align:center; color:#94A3B8; font-size:.8rem; margin-top:34px;}
 
-/* responsive rows: the two halves sit side by side on wide screens and stack on narrow ones */
-.st-key-pick_row [data-testid="stHorizontalBlock"], .st-key-result_row [data-testid="stHorizontalBlock"] {flex-wrap:wrap;}
-.st-key-pick_row [data-testid="stColumn"], .st-key-result_row [data-testid="stColumn"] {min-width:min(300px,100%);}
-.st-key-gallery [data-testid="stHorizontalBlock"], .st-key-images [data-testid="stHorizontalBlock"],
+/* responsive rows */
+.st-key-result_row {margin-bottom:14px;}
+.st-key-result_row [data-testid="stHorizontalBlock"] {flex-wrap:wrap;}
+.st-key-result_row [data-testid="stColumn"] {min-width:min(320px,100%);}
 .st-key-stages [data-testid="stHorizontalBlock"] {flex-wrap:nowrap;}
-.st-key-gallery [data-testid="stColumn"], .st-key-images [data-testid="stColumn"],
 .st-key-stages [data-testid="stColumn"] {min-width:0;}
-.st-key-gallery button {min-height:30px; padding:0 4px;}
-.st-key-gallery button p {font-size:.78rem; white-space:nowrap;}
-.st-key-gallery img, .st-key-photo img {border-radius:12px;}
-@media (max-width: 900px) {.rs-prob {grid-template-columns:110px 1fr 50px;} .rs-logo {display:none;}}
+@media (max-width: 720px) {.rs-hero .t {font-size:1.75rem;} .rs-res-head {flex-direction:column; align-items:flex-start;}
+  .rs-prob {grid-template-columns:100px 1fr 50px;} .rs-proto {display:none;}}
 </style>
 """
 
@@ -263,8 +356,12 @@ def html(markup: str) -> None:
     st.markdown(markup, unsafe_allow_html=True)
 
 
-def chip(text: str, fg: str, bg: str) -> str:
-    return f'<span class="rs-chip" style="color:{fg};background:{bg}">{text}</span>'
+def data_uri(rgb: np.ndarray, size: int = 448) -> str:
+    """Encode an image as an inline JPEG for the HTML parts of the page."""
+    img = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8)).resize((size, size), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
 def tiles(items, cols: int = 2) -> str:
@@ -275,44 +372,80 @@ def tiles(items, cols: int = 2) -> str:
     return f'<div class="rs-tiles" style="grid-template-columns:{grid}">{cells}</div>'
 
 
-def step_header(n, text: str) -> None:
-    html(f'<div class="rs-step-h"><span>{n}</span>{text}</div>')
+def hero(title: str, accent: str, text: str) -> None:
+    html(f'<div class="rs-hero"><div class="t">{title} <span>{accent}</span></div><p>{text}</p></div>')
+
+
+def ring(grade: int, conf: float, colour: str) -> str:
+    """Confidence ring with the grade in the centre."""
+    circ = 2 * np.pi * 50
+    return (f'<div class="rs-ring"><svg width="118" height="118" viewBox="0 0 120 120">'
+            f'<circle cx="60" cy="60" r="50" fill="none" stroke="#EEF2F6" stroke-width="10"/>'
+            f'<circle cx="60" cy="60" r="50" fill="none" stroke="{colour}" stroke-width="10" stroke-linecap="round" '
+            f'stroke-dasharray="{circ * conf:.1f} {circ:.1f}" transform="rotate(-90 60 60)"/>'
+            f'<text x="60" y="50" text-anchor="middle" font-size="11" font-weight="700" fill="#64748B" letter-spacing="1.5">GRADE</text>'
+            f'<text x="60" y="84" text-anchor="middle" font-size="40" font-weight="800" fill="{colour}">{grade}</text>'
+            f'</svg><small>{conf:.0%} confidence</small></div>')
 
 
 def severity_scale(active: int) -> str:
     cells = "".join(
         f'<div class="rs-seg{" on" if i == active else ""}"><div class="bar" style="background:{GRADE_COLOURS[i]}"></div>'
-        f'<div class="lbl">{i} · {C.CLASS_LABELS[i]}</div></div>' for i in range(5))
+        f'<div class="lbl">{FRIENDLY[i]}</div></div>' for i in range(5))
     return f'<div class="rs-scale">{cells}</div>'
 
 
 def result_card(res: dict) -> str:
-    """Headline result for a non-specialist: stage, urgency, what to do next, place on the scale."""
+    """Headline result for a non-specialist: grade, stage, urgency, what to do next, place on the scale."""
     g, conf = res["grade"], res["confidence"]
     s, col = STAGE_INFO[g], GRADE_COLOURS[g]
-    parts = [f'<div class="rs-result" style="--g:{col}">',
-             '<div class="rs-kicker">Result</div>',
-             f'<div class="rs-grade"><em>Grade {g}</em> · {s["name"]}</div>',
-             chip(s["urgency"], col, f"{col}1F") + chip(f"{conf:.0%} confidence", "#334155", "#EEF2F6"),
-             f'<div class="rs-advice"><b>What to do next:</b> {s["advice"].capitalize()}</div>']
+    parts = [f'<div class="rs-card" style="--g:{col};--gbg:{col}14">',
+             '<div class="rs-res-head">', ring(g, conf, col),
+             '<div><div class="rs-kicker">Result</div>'
+             f'<div class="rs-stage">{s["name"]}</div>'
+             f'<span class="rs-pill" style="color:{col};background:{col}1F">● {s["urgency"]}</span></div></div>',
+             f'<div class="rs-next"><div class="ic">{icon("next", 18)}</div><div><b>What to do next</b>'
+             f'<p>{s["advice"].capitalize()}</p></div></div>']
     if conf < LOW_CONFIDENCE:
-        parts.append('<div class="rs-warn">⚠ The AI is unsure about this photograph. Please ask an eye-care '
-                     'professional to look at it.</div>')
+        parts.append(f'<div class="rs-warn">{icon("alert", 18)}<span>The AI is unsure about this photo. '
+                     'Please ask an eye-care professional to look at it.</span></div>')
     parts.append(severity_scale(g))
     parts.append("</div>")
     return "".join(parts)
 
 
+def photo_viewer(res: dict) -> str:
+    """The photograph with a switch that fades the Grad-CAM heat-map in and out instantly (CSS only)."""
+    base, heat = data_uri(res["processed"]), data_uri(overlay_heatmap(res["processed"], res["heatmap"], 0.45))
+    return ('<div class="rs-viewer"><input type="checkbox" id="rs-heat">'
+            f'<div class="rs-imgs"><img src="{base}" alt="Your photograph"><img class="heat" src="{heat}" alt="Heat-map"></div>'
+            '<label class="rs-switch" for="rs-heat"><span class="track"></span>Show where the AI looked</label>'
+            '<div class="rs-heat-note">Red areas influenced the result most, blue areas least (Grad-CAM). '
+            'In diseased eyes they usually cover lesions.</div></div>')
+
+
 def prob_bars(probs, active: int) -> str:
     return "".join(
-        f'<div class="rs-prob{" on" if i == active else ""}"><span>{i} · {C.CLASS_LABELS[i]}</span>'
+        f'<div class="rs-prob{" on" if i == active else ""}"><span>{i} · {FRIENDLY[i]}</span>'
         f'<div class="rs-track"><div style="width:{max(float(p) * 100, 0.8):.1f}%;background:{GRADE_COLOURS[i]}"></div></div>'
         f'<b>{p:.1%}</b></div>' for i, p in enumerate(probs))
 
 
 def grade_legend() -> str:
     return '<div class="rs-legend">' + "".join(
-        f'<span><i style="background:{GRADE_COLOURS[g]}"></i>{g} · {C.CLASS_LABELS[g]}</span>' for g in range(5)) + "</div>"
+        f'<span><i style="background:{GRADE_COLOURS[g]}"></i>{g} · {FRIENDLY[g]}</span>' for g in range(5)) + "</div>"
+
+
+def sample_grid(paths, key: str) -> None:
+    """Row(s) of sample thumbnails; clicking a thumbnail grades it."""
+    with st.container(key=key):
+        for i in range(0, len(paths), 5):
+            cols = st.columns(5)
+            for col, p in zip(cols, paths[i:i + 5]):
+                ref = sample_info(p.name)[1]
+                with col:
+                    st.image(thumbnail(str(p), ref), width="stretch")
+                    st.button(f"Try sample: grade {ref}", key=f"pick_{key}_{p.name}", on_click=choose_sample, args=(p.name,))
 
 
 # --------------------------------------------------------------------------- #
@@ -323,20 +456,20 @@ model, meta = load_model_and_meta()
 ss = st.session_state
 samples = (sorted(SAMPLES_DIR.glob("*.png")) + sorted(SAMPLES_DIR.glob("*.jpg"))) if SAMPLES_DIR.exists() else []
 
-html('<div class="rs-hero"><div class="rs-logo">👁️</div><div>'
-     '<div class="rs-title">RetinaScreen</div>'
-     '<div class="rs-sub">Check a retina photograph for signs of diabetic retinopathy</div></div></div>')
+html(f'<div class="rs-top"><div class="rs-brand"><div class="rs-mark">{icon("eye", 22, "#fff")}</div>'
+     '<div><b>RetinaScreen</b><small>AI screening for diabetic retinopathy</small></div></div>'
+     '<span class="rs-proto">Coursework prototype</span></div>')
 
 if model is None:
     st.error("No trained model found in `models/`. Run `scripts/train.py --save-best` first.")
     st.stop()
 
-tab_single, tab_batch, tab_bot, tab_card = st.tabs(["🔍 Screen a photo", "📂 Batch screening", "💬 Ask RetinaBot",
-                                                    "ℹ️ About the model"])
+tab_single, tab_batch, tab_bot, tab_card = st.tabs([":material/center_focus_strong: Screen a photo",
+                                                    ":material/grid_view: Batch screening",
+                                                    ":material/forum: RetinaBot", ":material/info: About"])
 
 # ---------------------------------------------------------------------- #
-# Tab 1 - single image: choose a photo, then see the result.
-# Everything technical sits in collapsed sections under the result.
+# Tab 1 - single image: choose a photo, then see the result
 # ---------------------------------------------------------------------- #
 ss.setdefault("photo", None)        # (file name, encoded bytes) of the photograph being screened
 ss.setdefault("upload_key", 0)
@@ -360,84 +493,70 @@ def clear_photo() -> None:
 
 with tab_single:
     if ss["photo"] is None:
-        with st.container(key="pick_row"):
-            up_col, how_col = st.columns([3, 2], gap="medium")
-            with up_col:
-                with st.container(border=True):
-                    step_header(1, "Add a retina photograph")
-                    st.file_uploader("Colour fundus photograph (PNG / JPG)", type=["png", "jpg", "jpeg"],
-                                     key=f"upload_{ss['upload_key']}", on_change=store_upload)
-                    if samples:
-                        with st.expander("No photograph to hand? Try one of ours"):
-                            html('<div class="rs-muted">Real photographs from the test data. The badge is the grade '
-                                 'given by the eye specialists who labelled them.</div>')
-                            with st.container(key="gallery"):
-                                for i in range(0, len(samples), 5):
-                                    cols = st.columns(5, gap="small")
-                                    for col, p in zip(cols, samples[i:i + 5]):
-                                        with col:
-                                            st.image(thumbnail(str(p), sample_info(p.name)[1]), width="stretch")
-                                            st.button("Use", key=f"pick_{p.name}", width="stretch", help=p.name,
-                                                      on_click=choose_sample, args=(p.name,))
-            with how_col:
-                html('<div class="rs-how">'
-                     '<div><i>📷</i><p><b>Add a photograph</b><span>A colour photo of the back of the eye.</span></p></div>'
-                     '<div><i>🧠</i><p><b>The AI grades it</b><span>On the 5-stage international scale, in seconds.</span></p></div>'
-                     '<div><i>✅</i><p><b>See what to do next</b><span>Clear advice on whether and how soon to see an '
-                     'eye specialist.</span></p></div></div>')
+        with st.container(key="landing"):
+            hero("Check a retina photo for", "diabetic retinopathy",
+                 "Upload a photograph of the back of the eye. In a few seconds you see the stage of the disease "
+                 "and what to do next.")
+            st.file_uploader("Retina photograph", type=["png", "jpg", "jpeg"], label_visibility="collapsed",
+                             key=f"upload_{ss['upload_key']}", on_change=store_upload)
+            if samples:
+                featured = []
+                for g in range(5):        # one APTOS test photo of each stage
+                    featured += [p for p in samples if p.name.lower().startswith(f"aptos_grade{g}_")][:1]
+                others = [p for p in samples if p not in featured]
+                html('<div class="rs-divider">No photo to hand? Tap a sample, one of each stage</div>')
+                sample_grid(featured, "samples")
+                if others:
+                    with st.expander("More samples, including photos from another country"):
+                        sample_grid(others, "samples_more")
+            html('<div class="rs-feats">'
+                 f'<div class="rs-feat"><div class="ic">{icon("upload")}</div><div><b>Add a photo</b>'
+                 '<span>A colour photograph of the retina.</span></div></div>'
+                 f'<div class="rs-feat"><div class="ic">{icon("pulse")}</div><div><b>AI grades it</b>'
+                 '<span>On the 5-stage international scale.</span></div></div>'
+                 f'<div class="rs-feat"><div class="ic">{icon("check")}</div><div><b>Know what to do</b>'
+                 '<span>Whether, and how soon, to see a specialist.</span></div></div></div>')
     else:
         name, data = ss["photo"]
         with st.spinner("Checking the photograph ..."):
             res = grade_bytes(data, meta.get("run_name", ""), model, meta)
         ss["last_result"] = res
 
-        bar_l, bar_r = st.columns([4, 1], vertical_alignment="center")
-        bar_l.markdown(f'<div class="rs-photo-bar">📷 <b>{escape(name)}</b></div>', unsafe_allow_html=True)
-        bar_r.button("Choose another photo", on_click=clear_photo, width="stretch")
-
+        st.button("Check another photo", icon=":material/arrow_back:", type="tertiary", on_click=clear_photo)
         with st.container(key="result_row"):
-            photo_col, res_col = st.columns([2, 3], gap="medium")
+            photo_col, res_col = st.columns([5, 6], gap="large")
             with photo_col:
-                with st.container(key="photo"):
-                    st.image(res["rgb"], caption="Your photograph", width="stretch")
+                html(photo_viewer(res))
             with res_col:
                 html(result_card(res))
                 with st.container(horizontal=True, vertical_alignment="center"):
-                    st.download_button("⬇ Download summary", screening_summary(name, res, meta),
-                                       "screening_summary.txt", "text/plain", type="primary")
-                    st.caption("Questions? Ask **RetinaBot** in the next tab.")
+                    st.download_button("Download report", screening_summary(name, res, meta), "screening_summary.txt",
+                                       "text/plain", type="primary", icon=":material/download:")
+                    st.caption("Questions? Ask **RetinaBot** in the menu above.")
 
-        with st.expander("🔥 Why this result? See where the AI looked"):
-            with st.container(key="images"):
-                c1, c2, c3 = st.columns([2, 2, 3], gap="medium")
-                c1.image(res["processed"], caption="What the AI saw", width="stretch")
-                slot = c2.empty()
-                with c3:
-                    st.caption("The heat-map (Grad-CAM) colours the parts of the photograph that pushed the AI "
-                               "towards its answer: red mattered most, blue least. In diseased eyes these are "
-                               "usually areas with lesions.")
-                    alpha = st.slider("Heat-map strength", 0.2, 0.7, 0.4, 0.05)
-                slot.image(overlay_heatmap(res["processed"], res["heatmap"], alpha),
-                           caption="Where it looked", width="stretch")
-        with st.expander("📊 How sure is the AI? Probability of each stage"):
-            html(prob_bars(res["probs"], res["grade"]))
-        with st.expander("⚙️ Technical details"):
-            src_label, ref = sample_info(name)
-            if ref is not None:
-                agree = "agrees" if ref == res["grade"] else ("is one grade apart" if abs(ref - res["grade"]) == 1
-                                                              else "disagrees")
-                st.markdown(f"**Reference grade** in the {src_label}: {ref} - {C.CLASS_LABELS[ref]} "
-                            f"(the prediction {agree}).")
-            st.markdown(f"**Model:** {meta['backbone']}, {meta['preprocess']} preprocessing, {meta['img_size']} px input"
-                        + (", test-time augmentation (4 flipped views)" if meta.get("tta") else "")
-                        + f"  \n**Original size:** {res['rgb'].shape[1]} x {res['rgb'].shape[0]} px"
-                        + f"  \n**Grading time:** {res['ms']:.0f} ms")
-            st.markdown("**Preprocessing applied to this photograph** (identical to training)")
-            stages = pipeline_stages(res["rgb"], meta)
-            with st.container(key="stages"):
-                cols = st.columns(len(stages))
-                for col, (stage_name, img) in zip(cols, stages.items()):
-                    col.image(img, caption=stage_name, width="stretch", clamp=True)
+        with st.expander("More details"):
+            t_prob, t_tech = st.tabs(["How sure is the AI?", "Technical details"])
+            with t_prob:
+                st.caption("Probability the AI gave to each stage.")
+                html(prob_bars(res["probs"], res["grade"]))
+            with t_tech:
+                src_label, ref = sample_info(name)
+                if ref is not None:
+                    agree = "agrees" if ref == res["grade"] else ("is one grade apart" if abs(ref - res["grade"]) == 1
+                                                                  else "disagrees")
+                    st.markdown(f"**Reference grade** in the {src_label}: {ref} - {C.CLASS_LABELS[ref]} "
+                                f"(the prediction {agree}).")
+                st.markdown(f"**File:** {escape(name)}  \n**Model:** {meta['backbone']}, {meta['preprocess']} "
+                            f"preprocessing, {meta['img_size']} px input"
+                            + (", test-time augmentation (4 flipped views)" if meta.get("tta") else "")
+                            + f"  \n**Original size:** {res['rgb'].shape[1]} x {res['rgb'].shape[0]} px"
+                            + f"  \n**Grading time:** {res['ms']:.0f} ms")
+                st.markdown("**Preprocessing applied to this photograph** (identical to training)")
+                stages = pipeline_stages(res["rgb"], meta)
+                with st.container(key="stages"):
+                    cols = st.columns(len(stages))
+                    for col, (stage_name, img) in zip(cols, stages.items()):
+                        col.image(img, caption=stage_name, width="stretch", clamp=True)
 
 # ---------------------------------------------------------------------- #
 # Tab 2 - batch
@@ -457,16 +576,17 @@ def clear_batch() -> None:
 
 
 with tab_batch:
-    with st.container(border=True):
-        step_header(1, "Screen many photographs at once")
-        st.caption("For clinics: results are sorted with the most urgent eyes first and can be downloaded as a CSV file.")
-        files = st.file_uploader("Fundus photographs (PNG / JPG)", type=["png", "jpg", "jpeg"],
-                                 accept_multiple_files=True, key=f"batch_{ss['batch_key']}")
+    with st.container(key="batch_top"):
+        hero("Screen a whole clinic", "at once",
+             "Add many photographs. The most urgent eyes are listed first, and you can download the results.")
+        files = st.file_uploader("Retina photographs", type=["png", "jpg", "jpeg"], accept_multiple_files=True,
+                                 label_visibility="collapsed", key=f"batch_{ss['batch_key']}")
         if files:
             ss["batch_samples"] = False
-        with st.container(horizontal=True):
+        with st.container(horizontal=True, horizontal_alignment="center"):
             if samples:
-                st.button(f"Try it with our {len(samples)} sample photographs", on_click=use_batch_samples)
+                st.button(f"Try it with our {len(samples)} sample photos", icon=":material/photo_library:",
+                          on_click=use_batch_samples)
             if files or ss["batch_samples"]:
                 st.button("Clear", type="tertiary", on_click=clear_batch)
 
@@ -492,8 +612,8 @@ with tab_batch:
         df = pd.DataFrame(rows).sort_values(["grade", "confidence"], ascending=[False, False])
 
         n, n_ref = len(df), int(df["referable"].sum())
-        html(tiles([("photographs checked", n),
-                    ("need referral", f"{n_ref} <span class='rs-muted'>({n_ref / n:.0%})</span>"),
+        html(tiles([("photos checked", n),
+                    ("need referral", f"{n_ref} <span style='font-size:.9rem;color:#64748B'>({n_ref / n:.0%})</span>"),
                     ("urgent", int((df["grade"] >= 3).sum())),
                     ("unsure: ask a specialist", int((df["confidence"] < LOW_CONFIDENCE).sum()))], cols=4))
         view = df[["image", "grade", "stage", "urgency", "confidence"]].copy()
@@ -505,10 +625,9 @@ with tab_batch:
             "urgency": st.column_config.TextColumn("Urgency"),
             "confidence": st.column_config.ProgressColumn("Confidence", format="%.0f%%", min_value=0, max_value=100),
         })
-        st.download_button("⬇ Download CSV report", df.to_csv(index=False).encode(), "dr_batch_report.csv",
-                           "text/csv", type="primary")
-
-        with st.expander("📊 Grade distribution"):
+        st.download_button("Download results (CSV)", df.to_csv(index=False).encode(), "dr_batch_report.csv",
+                           "text/csv", type="primary", icon=":material/download:")
+        with st.expander("More details"):
             counts = df["grade"].value_counts().reindex(range(5), fill_value=0)
             html('<div class="rs-dist">' + "".join(
                 f'<div title="{C.CLASS_LABELS[g]}: {c}" style="width:{100 * c / n:.2f}%;background:{GRADE_COLOURS[g]}"></div>'
@@ -520,10 +639,9 @@ with tab_batch:
                 near = int(((k["grade"] - k["reference grade"]).abs() <= 1).sum())
                 st.caption(f"Agreement with the dataset's reference grade: {exact} of {len(k)} exact, "
                            f"{near} of {len(k)} within one grade.")
-        with st.expander("🔥 Heat-maps of every photograph"):
             cols = st.columns(min(5, len(thumbs)))
             for i, (name, img, g, conf) in enumerate(thumbs):
-                cols[i % len(cols)].image(img, caption=f"Grade {g} ({conf:.0%}) · {name[:22]}", width="stretch")
+                cols[i % len(cols)].image(img, caption=f"Grade {g} ({conf:.0%})", width="stretch")
 
 # ---------------------------------------------------------------------- #
 # Tab 3 - chatbot
@@ -544,16 +662,16 @@ with tab_bot:
     h1, h2 = st.columns([5, 1], vertical_alignment="center")
     with h1:
         if last:
-            html(f'<div class="rs-context">💬 Talking about your result: <b>Grade {last["grade"]} · '
-                 f'{STAGE_INFO[last["grade"]]["name"]}</b></div>')
+            html(f'<div class="rs-context">{icon("check", 18)}<span>Talking about your result: <b>Grade {last["grade"]} · '
+                 f'{STAGE_INFO[last["grade"]]["name"]}</b></span></div>')
         else:
-            html('<div class="rs-context muted">Screen a photograph first to ask about your result, '
+            html('<div class="rs-context muted">Check a photo first to ask about your result, '
                  'or ask anything about diabetic retinopathy.</div>')
-    if h2.button("Clear chat", type="tertiary"):
+    if h2.button("Clear chat", type="tertiary", icon=":material/refresh:"):
         ss["chat"] = [("assistant", bot.greeting(ChatContext()))]
         st.rerun()
     for role, text in ss["chat"]:
-        with st.chat_message(role, avatar="👁️" if role == "assistant" else None):
+        with st.chat_message(role, avatar=":material/visibility:" if role == "assistant" else ":material/person:"):
             st.markdown(text)
     prompts = ["What does my result mean?", "What should I do next?", "What are the DR stages?", "What is the heat-map?"]
     clicked = None
@@ -578,10 +696,10 @@ with tab_card:
             ("Eyes needing referral that it finds", "referable_sensitivity", "{:.1%}"),
             ("Healthy eyes it correctly clears", "referable_specificity", "{:.1%}"),
             ("Agreement with specialists (kappa)", "qwk", "{:.2f}")]
-    st.markdown("#### How accurate is it?")
+    html('<div class="rs-section">How accurate is it?</div>')
     c1, c2 = st.columns(2, gap="large")
-    for col, title, mm in [(c1, "On new photos from the same hospital (APTOS 2019)", m),
-                           (c2, "On photos from another country (EyePACS 2015)", ext)]:
+    for col, title, mm in [(c1, "New photos from the same hospital (APTOS 2019)", m),
+                           (c2, "Photos from another country (EyePACS 2015)", ext)]:
         if mm:
             col.markdown(f"**{title}**")
             with col:
@@ -590,7 +708,7 @@ with tab_card:
                "and adapt the model with its own photographs before use. RetinaScreen is a coursework prototype, "
                "not a medical device.")
 
-    with st.expander("🧠 How the model was built"):
+    with st.expander("How the model was built", icon=":material/neurology:"):
         st.markdown(f"""
 **Task** - 5-class diabetic retinopathy grading (ICDR scale) from colour fundus photographs, with a referable-DR
 decision (grade 2 or worse) and referral urgency.
@@ -616,7 +734,7 @@ brightness, contrast); early stopping on validation QWK, ReduceLROnPlateau, mode
             gpu = hw.get("gpu_name") or hw.get("gpu") or "CPU"
             gpu = " x ".join(gpu) if isinstance(gpu, list) else gpu
             st.caption(f"Trained with TensorFlow {hw.get('tensorflow')} on {gpu}.")
-    with st.expander("⚖️ Intended use, limitations and ethics"):
+    with st.expander("Intended use, limitations and ethics", icon=":material/balance:"):
         st.markdown("""
 **Intended use** - decision *support* for screening programmes: prioritise which patients an
 ophthalmologist should see first.  Not a diagnostic device.
@@ -628,7 +746,7 @@ frequently confused; image quality strongly affects results; model confidence is
 **Ethics** - both datasets are anonymised and released under CC0; predictions are explained with
 Grad-CAM so a clinician can verify that the evidence is anatomically plausible.
 """)
-    with st.expander("📈 All metrics"):
+    with st.expander("All metrics", icon=":material/table_chart:"):
         table = pd.DataFrame({"APTOS 2019 test (internal)": pd.Series(m)})
         if ext:
             table["EyePACS 2015 (external)"] = pd.Series(ext)
@@ -648,7 +766,7 @@ Grad-CAM so a clinician can verify that the evidence is anatomically plausible.
     evidence = [(t, [(p, cap) for p, cap in figs if p.exists()]) for t, figs in evidence]
     evidence = [(t, figs) for t, figs in evidence if figs]
     if evidence:
-        with st.expander("🖼️ Training and evaluation evidence (figures)"):
+        with st.expander("Training and evaluation evidence (figures)", icon=":material/insert_chart:"):
             for tab, (_, figs) in zip(st.tabs([t for t, _ in evidence]), evidence):
                 with tab:
                     for p, cap in figs:
