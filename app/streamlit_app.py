@@ -147,6 +147,36 @@ def thumbnail(path: str, grade=None, size: int = 160) -> np.ndarray:
     return np.array(img)
 
 
+@st.cache_data(show_spinner=False)
+def notebook_predictions() -> dict:
+    """Grade predicted by the final model in the Kaggle notebook for every test and external image."""
+    preds = {}
+    for f in ("test_predictions.csv", "external_predictions.csv"):
+        path = ROOT / "results" / f
+        if path.exists():
+            df = pd.read_csv(path, usecols=["image_id", "pred"])
+            preds.update(zip(df["image_id"].astype(str), df["pred"].astype(int)))
+    return preds
+
+
+def sample_groups(paths):
+    """Split the bundled samples into photos the model grades correctly (offered first, one per grade where
+    one exists, plus one external photo) and the photos it gets wrong (offered as 'harder cases')."""
+    preds = notebook_predictions()
+
+    def predicted(path):
+        stem = path.stem
+        return preds.get(stem.split("_")[-1] if stem.startswith("aptos") else "_".join(stem.split("_")[-2:]))
+
+    correct = [q for q in paths if predicted(q) == sample_info(q.name)[1]]
+    wrong = [q for q in paths if predicted(q) is not None and predicted(q) != sample_info(q.name)[1]]
+    featured = []
+    for g in range(5):
+        featured += [q for q in correct if q.name.startswith(f"aptos_grade{g}_")][:1]
+    featured += [q for q in correct if q.name.startswith("eyepacs") and sample_info(q.name)[1] >= 2][:1]
+    return featured[:5], wrong
+
+
 def sample_info(name: str):
     """Source dataset and reference grade encoded in a bundled sample's file name."""
     m = SAMPLE_RE.match(name)
@@ -220,12 +250,20 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .rs-brand b {font-size:1.3rem; font-weight:800; color:#0F172A; letter-spacing:-.02em;}
 .rs-brand b span {color:#0F766E;}
 
-/* floating RetinaBot button and chat panel */
-.st-key-chat_fab {position:fixed !important; right:max(48px, calc((100vw - 1560px) / 2 + 48px)); bottom:24px; z-index:999;
-  width:auto !important;}
-.st-key-chat_fab button {background:linear-gradient(135deg,#14B8A6,#0F766E) !important; border:none !important; min-height:54px;
-  padding:0 22px; border-radius:999px; box-shadow:0 12px 30px rgba(15,118,110,.38);}
-.st-key-chat_fab button p, .st-key-chat_fab button span {color:#fff !important; font-weight:700;}
+/* RetinaBot: round chat bubble in the bottom-right corner; its label appears on hover */
+.st-key-chat_fab {position:fixed !important; right:24px; bottom:24px; z-index:999; width:auto !important;}
+.st-key-chat_fab button {width:60px; height:60px; min-height:60px; padding:0 !important; border-radius:50% !important;
+  background:linear-gradient(135deg,#14B8A6,#0F766E) !important; border:none !important;
+  box-shadow:0 12px 30px rgba(15,118,110,.40); transition:transform .15s ease, box-shadow .15s ease;}
+.st-key-chat_fab button:hover {transform:translateY(-2px) scale(1.04); box-shadow:0 16px 36px rgba(15,118,110,.45);}
+.st-key-chat_fab button span {color:#fff !important;}
+.st-key-chat_fab button [data-testid="stIconMaterial"] {font-size:28px !important;}
+.st-key-chat_fab button [data-testid="stMarkdownContainer"] {position:absolute; width:1px; height:1px; overflow:hidden;
+  clip:rect(0 0 0 0); white-space:nowrap;}                                      /* label kept for screen readers */
+.st-key-chat_fab::before {content:"Ask RetinaBot"; position:absolute; right:72px; top:50%; transform:translateY(-50%);
+  background:#0F172A; color:#fff; font-size:.8rem; font-weight:600; padding:7px 11px; border-radius:9px; white-space:nowrap;
+  opacity:0; pointer-events:none; transition:opacity .15s ease;}
+.st-key-chat_fab:hover::before {opacity:1;}
 .st-key-chat_fab button div[aria-hidden="true"] {display:none;}                     /* no dropdown arrow */
 [data-testid="stPopoverBody"] {width:min(420px, calc(100vw - 28px)) !important; max-width:none !important; border-radius:22px !important;
   padding:16px 16px 10px !important; box-shadow:0 24px 60px rgba(15,23,42,.25) !important; border:1px solid #E2E8F0 !important;}
@@ -298,6 +336,7 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
   box-shadow:0 1px 2px rgba(15,23,42,.04), 0 18px 40px rgba(15,23,42,.07);}
 .st-key-drop_card [data-testid="stFileUploaderDropzone"], .st-key-batch_card [data-testid="stFileUploaderDropzone"] {box-shadow:none;}
 .rs-hero {padding:10px 0 6px;}
+.st-key-landing .rs-hero {padding-top:56px;}
 .rs-hero .t {font-size:clamp(2rem, 3.1vw, 3.1rem); line-height:1.08; font-weight:800; letter-spacing:-.04em; color:#0F172A; margin-bottom:16px;}
 .rs-hero .t span {background:linear-gradient(90deg,#0F766E,#0EA5E9); -webkit-background-clip:text; background-clip:text; color:transparent;}
 .rs-hero p {color:#475569; font-size:1.12rem; line-height:1.6; max-width:520px; margin:0;}
@@ -354,6 +393,16 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .rs-heat-note {display:none; color:#64748B; font-size:.84rem; margin-top:6px;}
 .rs-viewer input:checked ~ .rs-heat-note {display:block;}
 
+/* smoother page: no grey fade while Streamlit updates, gentle entrance of results */
+[data-stale="true"], .stale-element {opacity:1 !important; transition:none !important;}
+@keyframes rs-rise {from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:none;}}
+.rs-card, .rs-viewer, .rs-hero, .rs-feats, .rs-tiles {animation:rs-rise .45s ease both;}
+.rs-feats {animation-delay:.08s;}
+html {scroll-behavior:smooth;}
+.rs-ref {margin-top:14px; padding-top:12px; border-top:1px dashed #E2E8F0; font-size:.86rem; color:#475569;}
+.rs-ref.ok b {color:#0F766E;}
+.rs-ref.diff {color:#9A3412;}
+
 /* tiles, probability bars, legends */
 .rs-tiles {display:grid; gap:10px; margin:8px 0 14px;}
 .rs-tile {background:#fff; border:1px solid #E2E8F0; border-radius:16px; padding:14px 16px; box-shadow:0 1px 2px rgba(15,23,42,.04);}
@@ -372,7 +421,7 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 /* chat */
 .rs-context {display:flex; gap:10px; align-items:center; background:#F0FDFA; border:1px solid #99F6E4; color:#115E59; border-radius:16px; padding:12px 16px; font-size:.93rem;}
 .rs-context.muted {background:#fff; border-color:#E2E8F0; color:#475569;}
-.rs-footer {display:flex; align-items:center; flex-wrap:wrap; gap:6px 18px; min-height:54px; margin-top:32px; padding:8px 230px 8px 2px;
+.rs-footer {display:flex; align-items:center; flex-wrap:wrap; gap:6px 18px; min-height:54px; margin:32px 72px 0 0; padding:8px 2px;
   border-top:1px solid #E2E8F0; color:#64748B; font-size:.82rem;}
 .rs-foot-brand {display:flex; align-items:center; gap:8px; flex:none;}
 .rs-foot-brand b {font-size:.92rem; font-weight:800; color:#0F172A; letter-spacing:-.01em;}
@@ -384,12 +433,12 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .st-key-result_row [data-testid="stColumn"] {min-width:min(320px,100%);}
 .st-key-stages [data-testid="stHorizontalBlock"] {flex-wrap:nowrap;}
 .st-key-stages [data-testid="stColumn"] {min-width:0;}
-@media (max-width: 720px) {.rs-hero .t {font-size:1.9rem;} .rs-res-head {flex-direction:column; align-items:flex-start;}
+@media (max-width: 720px) {.rs-hero .t {font-size:1.9rem;} .st-key-landing .rs-hero {padding-top:6px;}
+  .st-key-landing .rs-feats {display:none;}   /* phones: the upload area comes straight after the headline */ .rs-res-head {flex-direction:column; align-items:flex-start;}
   .rs-prob {grid-template-columns:100px 1fr 50px;}
   .st-key-chat_fab {right:16px; bottom:16px;}
-  .st-key-chat_fab button {width:56px; min-height:56px; padding:0;}
-  .st-key-chat_fab button p {display:none;}
-  .rs-footer {padding-right:76px;}
+  .st-key-chat_fab button {width:56px; height:56px; min-height:56px;}
+  .rs-footer {margin-right:64px;}
   .st-key-chat_quick {flex-wrap:nowrap !important; overflow-x:auto; padding-bottom:4px;}   /* one swipeable row */
   .st-key-chat_quick > div {flex:none !important;}}
 </style>
@@ -440,8 +489,9 @@ def severity_scale(active: int) -> str:
     return f'<div class="rs-scale">{cells}</div>'
 
 
-def result_card(res: dict) -> str:
-    """Headline result for a non-specialist: grade, stage, urgency, what to do next, place on the scale."""
+def result_card(res: dict, reference=None) -> str:
+    """Headline result for a non-specialist: grade, stage, urgency, what to do next, place on the scale.
+    For a bundled sample, ``reference`` is the grade given by the eye specialists who labelled it."""
     g, conf = res["grade"], res["confidence"]
     s, col = STAGE_INFO[g], GRADE_COLOURS[g]
     parts = [f'<div class="rs-card" style="--g:{col};--gbg:{col}14">',
@@ -455,6 +505,11 @@ def result_card(res: dict) -> str:
         parts.append(f'<div class="rs-warn">{icon("alert", 18)}<span>The AI is unsure about this photo. '
                      'Please ask an eye-care professional to look at it.</span></div>')
     parts.append(severity_scale(g))
+    if reference is not None:
+        same = reference == g
+        parts.append(f'<div class="rs-ref {"ok" if same else "diff"}">{"✓" if same else "≠"} Eye specialists graded this '
+                     f'photo <b>{reference} · {FRIENDLY[reference]}</b>'
+                     + ("" if same else " · the AI disagrees") + "</div>")
     parts.append("</div>")
     return "".join(parts)
 
@@ -543,7 +598,7 @@ def clear_photo() -> None:
 with tab_single:
     if ss["photo"] is None:
         with st.container(key="landing"):
-            left, right = st.columns([5, 6], gap="large", vertical_alignment="center")
+            left, right = st.columns([5, 6], gap="large")     # top-aligned: opening a section never moves the headline
             with left:
                 hero("Check a retina photo for", "diabetic retinopathy",
                      "Upload a photograph of the back of the eye. In a few seconds you see the stage of the "
@@ -560,15 +615,15 @@ with tab_single:
                     st.file_uploader("Retina photograph", type=["png", "jpg", "jpeg"], label_visibility="collapsed",
                                      key=f"upload_{ss['upload_key']}", on_change=store_upload)
                     if samples:
-                        featured = []
-                        for g in range(5):        # one APTOS test photo of each stage
-                            featured += [p for p in samples if p.name.lower().startswith(f"aptos_grade{g}_")][:1]
-                        others = [p for p in samples if p not in featured]
-                        html('<div class="rs-divider">No photo to hand? Tap a sample, one of each stage</div>')
+                        featured, hard = sample_groups(samples)
+                        html('<div class="rs-divider">No photo to hand? Try one of these</div>')
                         sample_grid(featured, "samples")
-                        if others:
-                            with st.expander("More samples, including photos from another country"):
-                                sample_grid(others, "samples_more")
+                        if hard:
+                            with st.expander(f"Harder cases: {len(hard)} photos the AI gets wrong"):
+                                st.caption("On these photos the AI disagrees with the eye specialists who labelled "
+                                           "them, most often by under-grading severe disease. The badge shows the "
+                                           "specialists' grade.")
+                                sample_grid(hard, "samples_more")
     else:
         name, data = ss["photo"]
         with st.spinner("Checking the photograph ..."):
@@ -581,7 +636,7 @@ with tab_single:
             with photo_col:
                 html(photo_viewer(res))
             with res_col:
-                html(result_card(res))
+                html(result_card(res, sample_info(name)[1]))
                 with st.container(horizontal=True, vertical_alignment="center"):
                     st.download_button("Download report", screening_summary(name, res, meta), "screening_summary.txt",
                                        "text/plain", type="primary", icon=":material/download:")
@@ -789,8 +844,9 @@ Grad-CAM so a clinician can verify that the evidence is anatomically plausible.
 # ---------------------------------------------------------------------- #
 # RetinaBot: floating chat button (bottom right) that opens a chat panel
 # ---------------------------------------------------------------------- #
-with st.container(key="chat_fab"):
-    with st.popover("Ask RetinaBot", icon=":material/chat:"):
+@st.fragment
+def chat_panel() -> None:
+    with st.container(key="chat_fab"), st.popover("Ask RetinaBot", icon=":material/chat:"):
         bot = RetinaBot()
         if "chat" not in ss:
             ss["chat"] = [("assistant", bot.greeting(ChatContext()))]
@@ -811,7 +867,7 @@ with st.container(key="chat_fab"):
                           unsafe_allow_html=True)
             if clear.button("Clear", type="tertiary", key="chat_clear", help="Start a new conversation"):
                 ss["chat"] = [("assistant", bot.greeting(ChatContext()))]
-                st.rerun()
+                st.rerun(scope="fragment")
         with st.container(height=290, key="chat_log"):
             for role, text in ss["chat"]:
                 if role == "user":
@@ -829,7 +885,10 @@ with st.container(key="chat_fab"):
         if user_msg:
             ss["chat"].append(("user", user_msg))
             ss["chat"].append(("assistant", bot.reply(user_msg, ctx)))
-            st.rerun()
+            st.rerun(scope="fragment")
+
+
+chat_panel()
 
 html(f'<div class="rs-footer"><div class="rs-foot-brand">{logo(22)}<b>Retina <span>Screen</span></b></div>'
      '<span>A screening aid, not a medical device. Please confirm any result with an eye-care professional.</span></div>')
