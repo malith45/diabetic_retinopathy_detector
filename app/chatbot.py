@@ -88,6 +88,8 @@ INTENTS: List[Intent] = [
     Intent("greeting", [["hello", "hi", "hey", "good morning", "good evening", "start"]], "greeting"),
     Intent("thanks", [["thank", "thanks", "cheers", "great help"]], "thanks"),
     Intent("result", [["my result", "my image", "my scan", "what does", "mean", "diagnos", "grade", "prediction", "predicted", "my stage", "this stage", "the result"]], "result"),
+    Intent("severity", [["serious", "be worried", "should i worry", "worried", "worry", "worse", "dangerous", "danger", "bad", "scared", "afraid",
+                          "concern", "go blind", "blindness", "lose my sight", "emergency"]], "severity"),
     Intent("next_steps", [["next", "should i", "what now", "do now", "refer", "referral", "see a doctor", "ophthalmolog", "appointment", "urgent", "treatment", "treat"]], "next_steps"),
     Intent("what_is_dr", [["what is diabetic retinopathy", "what is dr", "retinopathy", "explain dr", "define", "disease"]], "what_is_dr"),
     Intent("stages", [["stage", "stages", "grade", "grades", "levels", "scale", "classification", "categories", "icdr"]], "stages"),
@@ -116,14 +118,19 @@ class RetinaBot:
         for intent in self.intents:
             score = 0
             for group in intent.keywords:
-                if any(f" {kw} " in text or kw in text for kw in group):
+                if any(self._found(kw, text) for kw in group):
                     score += 1
             # small bonus for longer / more specific keywords
-            longest = max((len(kw) for group in intent.keywords for kw in group if kw in text), default=0)
+            longest = max((len(kw) for group in intent.keywords for kw in group if self._found(kw, text)), default=0)
             score = score * 100 + longest
             if score > best_score:
                 best, best_score = intent, score
         return best if best_score >= 100 else None
+
+    @staticmethod
+    def _found(keyword: str, text: str) -> bool:
+        """Keywords of up to 3 letters must be whole words; longer ones may be word stems ("ophthalmolog")."""
+        return f" {keyword} " in text if len(keyword) <= 3 else keyword in text
 
     def reply(self, message: str, ctx: Optional[ChatContext] = None) -> str:
         ctx = ctx or ChatContext()
@@ -154,7 +161,7 @@ class RetinaBot:
 
     def result(self, ctx: ChatContext) -> str:
         if ctx.grade is None:
-            return ("No image has been graded yet. Upload a fundus photograph in the **Screen an image** tab "
+            return ("No image has been graded yet. Upload a fundus photograph in the **Screen a photo** tab "
                     "and I will explain the result.")
         s = STAGE_INFO[ctx.grade]
         conf = f" with {ctx.confidence:.0%} confidence" if ctx.confidence is not None else ""
@@ -167,6 +174,20 @@ class RetinaBot:
                 txt += (f"\n\nThe model also gave {ctx.probabilities[second]:.0%} to "
                         f"**{STAGE_INFO[second]['name']}**, so the image sits close to the boundary between the two grades.")
         return txt + "\n\n" + DISCLAIMER
+
+    def severity(self, ctx: ChatContext) -> str:
+        if ctx.grade is None:
+            return ("Once a photograph has been checked I can tell you how serious the result is. In general, grades "
+                    "0-1 are not urgent, grade 2 needs an appointment with an eye specialist, and grades 3-4 need "
+                    "urgent specialist care.")
+        s = STAGE_INFO[ctx.grade]
+        level = {0: "reassuring: no signs of diabetic retinopathy were found",
+                 1: "an early, mild stage that usually needs no treatment, only closer monitoring",
+                 2: "not an emergency, but you should see an eye specialist",
+                 3: "serious: the eye should be seen by a specialist urgently",
+                 4: "very serious: the eye needs specialist care as soon as possible"}[ctx.grade]
+        return (f"Your result, **{s['name']}**, is {level}. Recommended action: {s['advice']} Treated in time, "
+                f"most sight loss from diabetic retinopathy can be prevented.\n\n{DISCLAIMER}")
 
     def next_steps(self, ctx: ChatContext) -> str:
         if ctx.grade is None:
@@ -214,9 +235,9 @@ class RetinaBot:
 
     def model(self, ctx: ChatContext) -> str:
         return (f"Under the hood this app uses a **{ctx.model_name}** convolutional neural network pretrained on "
-                "ImageNet and fine-tuned on retinal photographs (transfer learning). Each image is first cropped, "
-                "resized to 224x224 and contrast-enhanced with Ben Graham's Gaussian-blur subtraction, then the "
-                "network outputs a probability for each of the five DR grades. Training used data augmentation, "
+                "ImageNet and fine-tuned on retinal photographs (transfer learning). Each image is first cropped to "
+                "the retina, padded to a square and resized to 224x224 (extra contrast filters were tested but did "
+                "not help), then the network outputs a probability for each of the five DR grades. Training used data augmentation, "
                 "class weighting for the rare severe grades, early stopping and a two-phase fine-tuning schedule.")
 
     def gradcam(self, ctx: ChatContext) -> str:
@@ -253,7 +274,7 @@ class RetinaBot:
             return text + (" The neighbouring grades (mild vs moderate, severe vs proliferative) are the hardest to "
                            "separate, which is also true for human graders.")
         return ("Performance is measured on a held-out test split with accuracy, precision, recall, F1-score and the "
-                "quadratic weighted kappa. See the **Model card** tab for the exact numbers of the loaded model.")
+                "quadratic weighted kappa. See the **About** tab for the exact numbers of the loaded model.")
 
     def dataset(self, ctx: ChatContext) -> str:
         return ("The model was trained on the **APTOS 2019 Blindness Detection** dataset from Kaggle (Aravind Eye "

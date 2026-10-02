@@ -207,8 +207,11 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .stApp {background: radial-gradient(1100px 480px at 0% -10%, rgba(20,184,166,.13), transparent 60%),
                     radial-gradient(900px 420px at 100% -5%, rgba(14,165,233,.10), transparent 60%), #F7FAFC;}
 [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], #MainMenu, footer {display:none !important;}
-[data-testid="stMainBlockContainer"], .block-container {padding: 1.4rem 3rem 2.5rem; max-width: 1560px;}
-@media (max-width: 720px) {[data-testid="stMainBlockContainer"], .block-container {padding: 1rem 1rem 5rem;}}
+[data-testid="stMainBlockContainer"], .block-container {padding: 1.4rem 3rem 24px; max-width: 1560px;}
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {min-height: calc(100vh - 1.4rem - 24px);}
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > :last-child {margin-top: auto;}   /* footer */
+@media (max-width: 720px) {[data-testid="stMainBlockContainer"], .block-container {padding: 1rem 1rem 16px;}
+  [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] {min-height: calc(100vh - 1rem - 16px);}}
 
 /* top bar */
 .rs-top {display:flex; align-items:center; justify-content:space-between; height:52px; padding:0 2px;}
@@ -218,7 +221,8 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .rs-brand b span {color:#0F766E;}
 
 /* floating RetinaBot button and chat panel */
-.st-key-chat_fab {position:fixed !important; right:24px; bottom:24px; z-index:999; width:auto !important;}
+.st-key-chat_fab {position:fixed !important; right:max(48px, calc((100vw - 1560px) / 2 + 48px)); bottom:24px; z-index:999;
+  width:auto !important;}
 .st-key-chat_fab button {background:linear-gradient(135deg,#14B8A6,#0F766E) !important; border:none !important; min-height:54px;
   padding:0 22px; border-radius:999px; box-shadow:0 12px 30px rgba(15,118,110,.38);}
 .st-key-chat_fab button p, .st-key-chat_fab button span {color:#fff !important; font-weight:700;}
@@ -228,13 +232,21 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .rs-chat-head {display:flex; gap:10px; align-items:center;}
 .rs-chat-head b {display:block; color:#0F172A; font-size:1rem;}
 .rs-chat-head small {color:#64748B; font-size:.8rem;}
-.st-key-chat_log [data-testid="stChatMessage"] {padding:10px 12px; border-radius:16px; box-shadow:none; margin-bottom:6px;}
-.st-key-chat_log [data-testid="stChatMessage"] p {font-size:.9rem; line-height:1.5;}
+.st-key-chat_log [data-testid="stChatMessage"] {background:transparent; border:none; box-shadow:none; padding:0; gap:8px;
+  margin:2px 0 10px; max-width:94%;}
+.st-key-chat_log [data-testid="stChatMessageContent"] {background:#F1F5F9; border-radius:4px 18px 18px 18px; padding:10px 14px;}
+.st-key-chat_log [data-testid="stChatMessage"] p, .st-key-chat_log [data-testid="stChatMessage"] li {font-size:.9rem; line-height:1.5; color:#1E293B;}
+.rs-msg-user {display:flex; justify-content:flex-end; margin:2px 0 10px;}
+.rs-msg-user div {max-width:80%; background:linear-gradient(135deg,#14B8A6,#0F766E); color:#fff; padding:10px 14px;
+  border-radius:18px 18px 4px 18px; font-size:.9rem; line-height:1.45; box-shadow:0 4px 12px rgba(15,118,110,.22);}
+.st-key-chat_log {height:min(290px, calc(100vh - 430px)) !important; min-height:150px;}   /* fits short screens */
 .st-key-chat_quick {gap:6px !important;}
 .st-key-chat_quick button {min-height:30px; padding:0 10px;}
 .st-key-chat_quick button p {font-size:.76rem;}
 .st-key-chat_top [data-testid="stHorizontalBlock"] {flex-wrap:nowrap; align-items:center;}
 .st-key-chat_top [data-testid="stColumn"] {min-width:0;}
+.st-key-chat_top button {min-height:32px; padding:0 10px; white-space:nowrap;}
+.st-key-chat_top [data-testid="stColumn"]:last-child {flex:none !important; width:auto !important;}
 
 /* pill navigation (react-aria tabs in Streamlit >= 1.5x, BaseWeb tabs in older versions) */
 .stTabs [role="tablist"] {gap:4px; background:#fff; padding:5px; border-radius:999px; border:1px solid #E2E8F0 !important;
@@ -358,10 +370,13 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .rs-section {font-size:1.3rem; font-weight:800; letter-spacing:-.02em; color:#0F172A; margin:6px 0 4px;}
 
 /* chat */
-[data-testid="stChatMessage"] {background:#fff; border:1px solid #E2E8F0; border-radius:18px; padding:14px 16px; box-shadow:0 1px 2px rgba(15,23,42,.04);}
 .rs-context {display:flex; gap:10px; align-items:center; background:#F0FDFA; border:1px solid #99F6E4; color:#115E59; border-radius:16px; padding:12px 16px; font-size:.93rem;}
 .rs-context.muted {background:#fff; border-color:#E2E8F0; color:#475569;}
-.rs-footer {text-align:center; color:#94A3B8; font-size:.8rem; margin-top:34px;}
+.rs-footer {display:flex; align-items:center; flex-wrap:wrap; gap:6px 18px; min-height:54px; margin-top:32px; padding:8px 230px 8px 2px;
+  border-top:1px solid #E2E8F0; color:#64748B; font-size:.82rem;}
+.rs-foot-brand {display:flex; align-items:center; gap:8px; flex:none;}
+.rs-foot-brand b {font-size:.92rem; font-weight:800; color:#0F172A; letter-spacing:-.01em;}
+.rs-foot-brand b span {color:#0F766E;}
 
 /* responsive rows */
 .st-key-result_row {margin-bottom:14px;}
@@ -370,7 +385,13 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .st-key-stages [data-testid="stHorizontalBlock"] {flex-wrap:nowrap;}
 .st-key-stages [data-testid="stColumn"] {min-width:0;}
 @media (max-width: 720px) {.rs-hero .t {font-size:1.9rem;} .rs-res-head {flex-direction:column; align-items:flex-start;}
-  .rs-prob {grid-template-columns:100px 1fr 50px;} .st-key-chat_fab {right:14px; bottom:14px;}}
+  .rs-prob {grid-template-columns:100px 1fr 50px;}
+  .st-key-chat_fab {right:16px; bottom:16px;}
+  .st-key-chat_fab button {width:56px; min-height:56px; padding:0;}
+  .st-key-chat_fab button p {display:none;}
+  .rs-footer {padding-right:76px;}
+  .st-key-chat_quick {flex-wrap:nowrap !important; overflow-x:auto; padding-bottom:4px;}   /* one swipeable row */
+  .st-key-chat_quick > div {flex:none !important;}}
 </style>
 """
 
@@ -793,8 +814,11 @@ with st.container(key="chat_fab"):
                 st.rerun()
         with st.container(height=290, key="chat_log"):
             for role, text in ss["chat"]:
-                with st.chat_message(role, avatar=":material/visibility:" if role == "assistant" else ":material/person:"):
-                    st.markdown(text)
+                if role == "user":
+                    html(f'<div class="rs-msg-user"><div>{escape(text)}</div></div>')
+                else:
+                    with st.chat_message("assistant", avatar=str(ROOT / "app" / "assets" / "logo.png")):
+                        st.markdown(text)
         prompts = ["What does my result mean?", "What should I do next?", "What are the DR stages?", "What is the heat-map?"]
         clicked = None
         with st.container(horizontal=True, key="chat_quick"):
@@ -807,5 +831,5 @@ with st.container(key="chat_fab"):
             ss["chat"].append(("assistant", bot.reply(user_msg, ctx)))
             st.rerun()
 
-html('<div class="rs-footer">Retina Screen is a screening aid, not a medical device. '
-     'Please confirm any result with an eye-care professional.</div>')
+html(f'<div class="rs-footer"><div class="rs-foot-brand">{logo(22)}<b>Retina <span>Screen</span></b></div>'
+     '<span>A screening aid, not a medical device. Please confirm any result with an eye-care professional.</span></div>')
