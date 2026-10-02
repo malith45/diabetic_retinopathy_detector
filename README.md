@@ -51,7 +51,7 @@ All figures are in `figures/`, all numbers in `results/`, and the full discussio
 │   ├── best_model.keras          final EfficientNetB3 classifier (raw 0-255 input, normalisation inside)
 │   └── model_metadata.json       preprocessing, TTA, metrics, datasets, environment
 ├── app/
-│   ├── streamlit_app.py          RetinaScreen prototype (screening, batch, RetinaBot, model card)
+│   ├── streamlit_app.py          Retina Screen prototype (screening, batch, RetinaBot, model card)
 │   ├── chatbot.py                RetinaBot - offline, rule-based assistant
 │   └── assets/samples/           real APTOS test images and EyePACS images (true grade in the file name)
 ├── src/dr_detection/

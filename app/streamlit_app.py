@@ -1,5 +1,5 @@
 """
-RetinaScreen - Diabetic Retinopathy stage detection demo (Streamlit).
+Retina Screen - Diabetic Retinopathy stage detection demo (Streamlit).
 
 Run locally:      streamlit run app/streamlit_app.py
 Requires:         models/best_model.keras and models/model_metadata.json
@@ -11,9 +11,10 @@ Tabs
                       to do next; a switch fades the Grad-CAM heat-map over the photo;
                       probabilities and technical details under "More details"
 2. Batch screening  - grade many images at once, most urgent first, with a CSV report
-3. RetinaBot        - rule-based assistant that explains results and DR stages
-4. About            - accuracy in plain language; model card, metrics and evidence figures
+3. About            - accuracy in plain language; model card, metrics and evidence figures
                       in collapsed sections
+RetinaBot, a rule-based assistant that explains results and DR stages, opens from a chat
+button in the bottom-right corner of every screen.
 """
 
 from __future__ import annotations
@@ -50,7 +51,7 @@ GRADE_COLOURS = ["#1E9E8A", "#D9A21B", "#E8772E", "#D1453B", "#8E1B24"]
 LOW_CONFIDENCE = 0.55          # below this the image is flagged for a human grader
 SAMPLE_RE = re.compile(r"^(aptos|eyepacs)_grade(\d)_", re.IGNORECASE)
 
-st.set_page_config(page_title="RetinaScreen - DR stage detection", page_icon="👁️", layout="wide",
+st.set_page_config(page_title="Retina Screen", page_icon=str(ROOT / "app" / "assets" / "logo.png"), layout="wide",
                    initial_sidebar_state="collapsed")
 
 
@@ -159,7 +160,7 @@ def screening_summary(name: str, res: dict, meta: dict) -> str:
     """Plain-text summary of one screening, for the download button."""
     s = STAGE_INFO[res["grade"]]
     lines = [
-        "RetinaScreen - diabetic retinopathy screening summary",
+        "Retina Screen - diabetic retinopathy screening summary",
         f"Image: {name}",
         f"Date: {time.strftime('%Y-%m-%d %H:%M')}",
         f"Model: {meta['backbone']} ({meta['preprocess']} preprocessing, {meta['img_size']} px)",
@@ -185,7 +186,6 @@ FRIENDLY = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"]
 
 # Small line icons (Lucide, ISC licence) used in the HTML parts of the page
 ICON = {
-    "eye": '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
     "upload": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
     "pulse": '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
     "check": '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
@@ -212,11 +212,28 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 /* top bar */
 .rs-top {display:flex; align-items:center; justify-content:space-between; padding:0 2px 16px;}
 .rs-brand {display:flex; align-items:center; gap:12px;}
-.rs-mark {width:42px; height:42px; border-radius:13px; display:grid; place-items:center; color:#fff;
-  background:linear-gradient(135deg,#14B8A6,#0F766E); box-shadow:0 6px 16px rgba(15,118,110,.30);}
-.rs-brand b {display:block; font-size:1.15rem; color:#0F172A; letter-spacing:-.01em; line-height:1.2;}
-.rs-brand small {color:#64748B; font-size:.8rem;}
-.rs-proto {font-size:.74rem; color:#0F766E; background:#CCFBF1; padding:5px 11px; border-radius:999px; font-weight:700;}
+.rs-brand svg {filter:drop-shadow(0 6px 14px rgba(15,118,110,.30));}
+.rs-brand b {font-size:1.3rem; font-weight:800; color:#0F172A; letter-spacing:-.02em;}
+.rs-brand b span {color:#0F766E;}
+
+/* floating RetinaBot button and chat panel */
+.st-key-chat_fab {position:fixed !important; right:24px; bottom:24px; z-index:999; width:auto !important;}
+.st-key-chat_fab button {background:linear-gradient(135deg,#14B8A6,#0F766E) !important; border:none !important; min-height:54px;
+  padding:0 22px; border-radius:999px; box-shadow:0 12px 30px rgba(15,118,110,.38);}
+.st-key-chat_fab button p, .st-key-chat_fab button span {color:#fff !important; font-weight:700;}
+.st-key-chat_fab button div[aria-hidden="true"] {display:none;}                     /* no dropdown arrow */
+[data-testid="stPopoverBody"] {width:min(420px, calc(100vw - 28px)) !important; max-width:none !important; border-radius:22px !important;
+  padding:16px 16px 10px !important; box-shadow:0 24px 60px rgba(15,23,42,.25) !important; border:1px solid #E2E8F0 !important;}
+.rs-chat-head {display:flex; gap:10px; align-items:center;}
+.rs-chat-head b {display:block; color:#0F172A; font-size:1rem;}
+.rs-chat-head small {color:#64748B; font-size:.8rem;}
+.st-key-chat_log [data-testid="stChatMessage"] {padding:10px 12px; border-radius:16px; box-shadow:none; margin-bottom:6px;}
+.st-key-chat_log [data-testid="stChatMessage"] p {font-size:.9rem; line-height:1.5;}
+.st-key-chat_quick {gap:6px !important;}
+.st-key-chat_quick button {min-height:30px; padding:0 10px;}
+.st-key-chat_quick button p {font-size:.76rem;}
+.st-key-chat_top [data-testid="stHorizontalBlock"] {flex-wrap:nowrap; align-items:center;}
+.st-key-chat_top [data-testid="stColumn"] {min-width:0;}
 
 /* pill navigation (react-aria tabs in Streamlit >= 1.5x, BaseWeb tabs in older versions) */
 .stTabs [role="tablist"] {gap:4px; background:#fff; padding:5px; border-radius:999px; border:1px solid #E2E8F0 !important;
@@ -346,7 +363,7 @@ body, .stApp, [data-testid="stMarkdownContainer"], [data-testid="stMarkdownConta
 .st-key-stages [data-testid="stHorizontalBlock"] {flex-wrap:nowrap;}
 .st-key-stages [data-testid="stColumn"] {min-width:0;}
 @media (max-width: 720px) {.rs-hero .t {font-size:1.75rem;} .rs-res-head {flex-direction:column; align-items:flex-start;}
-  .rs-prob {grid-template-columns:100px 1fr 50px;} .rs-proto {display:none;}}
+  .rs-prob {grid-template-columns:100px 1fr 50px;} .st-key-chat_fab {right:14px; bottom:14px;}}
 </style>
 """
 
@@ -456,17 +473,21 @@ model, meta = load_model_and_meta()
 ss = st.session_state
 samples = (sorted(SAMPLES_DIR.glob("*.png")) + sorted(SAMPLES_DIR.glob("*.jpg"))) if SAMPLES_DIR.exists() else []
 
-html(f'<div class="rs-top"><div class="rs-brand"><div class="rs-mark">{icon("eye", 22, "#fff")}</div>'
-     '<div><b>RetinaScreen</b><small>AI screening for diabetic retinopathy</small></div></div>'
-     '<span class="rs-proto">Coursework prototype</span></div>')
+LOGO = (ROOT / "app" / "assets" / "logo.svg").read_text(encoding="utf-8")
+
+
+def logo(size: int) -> str:
+    return LOGO.replace('width="48" height="48"', f'width="{size}" height="{size}"')
+
+
+html(f'<div class="rs-top"><div class="rs-brand">{logo(42)}<b>Retina <span>Screen</span></b></div></div>')
 
 if model is None:
     st.error("No trained model found in `models/`. Run `scripts/train.py --save-best` first.")
     st.stop()
 
-tab_single, tab_batch, tab_bot, tab_card = st.tabs([":material/center_focus_strong: Screen a photo",
-                                                    ":material/grid_view: Batch screening",
-                                                    ":material/forum: RetinaBot", ":material/info: About"])
+tab_single, tab_batch, tab_card = st.tabs([":material/center_focus_strong: Screen a photo",
+                                          ":material/grid_view: Batch screening", ":material/info: About"])
 
 # ---------------------------------------------------------------------- #
 # Tab 1 - single image: choose a photo, then see the result
@@ -532,7 +553,7 @@ with tab_single:
                 with st.container(horizontal=True, vertical_alignment="center"):
                     st.download_button("Download report", screening_summary(name, res, meta), "screening_summary.txt",
                                        "text/plain", type="primary", icon=":material/download:")
-                    st.caption("Questions? Ask **RetinaBot** in the menu above.")
+                    st.caption("Questions? Ask **RetinaBot**, bottom right.")
 
         with st.expander("More details"):
             t_prob, t_tech = st.tabs(["How sure is the AI?", "Technical details"])
@@ -644,49 +665,7 @@ with tab_batch:
                 cols[i % len(cols)].image(img, caption=f"Grade {g} ({conf:.0%})", width="stretch")
 
 # ---------------------------------------------------------------------- #
-# Tab 3 - chatbot
-# ---------------------------------------------------------------------- #
-with tab_bot:
-    bot = RetinaBot()
-    if "chat" not in ss:
-        ss["chat"] = [("assistant", bot.greeting(ChatContext()))]
-    last = ss.get("last_result")
-    ctx = ChatContext(
-        grade=last["grade"] if last else None,
-        confidence=last["confidence"] if last else None,
-        probabilities=[float(p) for p in last["probs"]] if last else None,
-        model_name=meta["backbone"],
-        metrics=meta.get("metrics", {}),
-        external_metrics=meta.get("external_metrics", {}),
-    )
-    h1, h2 = st.columns([5, 1], vertical_alignment="center")
-    with h1:
-        if last:
-            html(f'<div class="rs-context">{icon("check", 18)}<span>Talking about your result: <b>Grade {last["grade"]} · '
-                 f'{STAGE_INFO[last["grade"]]["name"]}</b></span></div>')
-        else:
-            html('<div class="rs-context muted">Check a photo first to ask about your result, '
-                 'or ask anything about diabetic retinopathy.</div>')
-    if h2.button("Clear chat", type="tertiary", icon=":material/refresh:"):
-        ss["chat"] = [("assistant", bot.greeting(ChatContext()))]
-        st.rerun()
-    for role, text in ss["chat"]:
-        with st.chat_message(role, avatar=":material/visibility:" if role == "assistant" else ":material/person:"):
-            st.markdown(text)
-    prompts = ["What does my result mean?", "What should I do next?", "What are the DR stages?", "What is the heat-map?"]
-    clicked = None
-    with st.container(horizontal=True):           # wraps onto several lines on narrow screens
-        for p in prompts:
-            if st.button(p):
-                clicked = p
-    user_msg = st.chat_input("Ask a question ...") or clicked
-    if user_msg:
-        ss["chat"].append(("user", user_msg))
-        ss["chat"].append(("assistant", bot.reply(user_msg, ctx)))
-        st.rerun()
-
-# ---------------------------------------------------------------------- #
-# Tab 4 - about the model (model card); details in collapsed sections
+# Tab 3 - about the model (model card); details in collapsed sections
 # ---------------------------------------------------------------------- #
 with tab_card:
     tc = meta.get("training_config", {})
@@ -705,7 +684,7 @@ with tab_card:
             with col:
                 html(tiles([(label, fmt.format(metric(mm, key))) for label, key, fmt in keys], cols=2))
     st.caption("Accuracy drops on photographs from other cameras and populations, so a clinic would need to check "
-               "and adapt the model with its own photographs before use. RetinaScreen is a coursework prototype, "
+               "and adapt the model with its own photographs before use. Retina Screen is a screening aid, "
                "not a medical device.")
 
     with st.expander("How the model was built", icon=":material/neurology:"):
@@ -772,4 +751,47 @@ Grad-CAM so a clinician can verify that the evidence is anatomically plausible.
                     for p, cap in figs:
                         st.image(str(p), caption=cap, width="stretch")
 
-html('<div class="rs-footer">RetinaScreen · university coursework prototype · not a medical device</div>')
+# ---------------------------------------------------------------------- #
+# RetinaBot: floating chat button (bottom right) that opens a chat panel
+# ---------------------------------------------------------------------- #
+with st.container(key="chat_fab"):
+    with st.popover("Ask RetinaBot", icon=":material/chat:"):
+        bot = RetinaBot()
+        if "chat" not in ss:
+            ss["chat"] = [("assistant", bot.greeting(ChatContext()))]
+        last = ss.get("last_result")
+        ctx = ChatContext(
+            grade=last["grade"] if last else None,
+            confidence=last["confidence"] if last else None,
+            probabilities=[float(p) for p in last["probs"]] if last else None,
+            model_name=meta["backbone"],
+            metrics=meta.get("metrics", {}),
+            external_metrics=meta.get("external_metrics", {}),
+        )
+        about = (f"About your result: grade {last['grade']}, {FRIENDLY[last['grade']].lower()}" if last
+                 else "Ask me about diabetic retinopathy")
+        with st.container(key="chat_top"):
+            head, clear = st.columns([3, 1], vertical_alignment="center")
+            head.markdown(f'<div class="rs-chat-head">{logo(36)}<div><b>RetinaBot</b><small>{about}</small></div></div>',
+                          unsafe_allow_html=True)
+            if clear.button("Clear", type="tertiary", key="chat_clear", help="Start a new conversation"):
+                ss["chat"] = [("assistant", bot.greeting(ChatContext()))]
+                st.rerun()
+        with st.container(height=290, key="chat_log"):
+            for role, text in ss["chat"]:
+                with st.chat_message(role, avatar=":material/visibility:" if role == "assistant" else ":material/person:"):
+                    st.markdown(text)
+        prompts = ["What does my result mean?", "What should I do next?", "What are the DR stages?", "What is the heat-map?"]
+        clicked = None
+        with st.container(horizontal=True, key="chat_quick"):
+            for p in prompts:
+                if st.button(p, key=f"quick_{p}"):
+                    clicked = p
+        user_msg = st.chat_input("Type a question ...", key="chat_input") or clicked
+        if user_msg:
+            ss["chat"].append(("user", user_msg))
+            ss["chat"].append(("assistant", bot.reply(user_msg, ctx)))
+            st.rerun()
+
+html('<div class="rs-footer">Retina Screen is a screening aid, not a medical device. '
+     'Please confirm any result with an eye-care professional.</div>')

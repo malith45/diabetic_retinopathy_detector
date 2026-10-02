@@ -1,4 +1,4 @@
-# Deploying the RetinaScreen demo to the cloud
+# Deploying the Retina Screen demo to the cloud
 
 The Streamlit app needs only `models/best_model.keras`, `models/model_metadata.json`,
 the `src/` package and `app/`. Two free hosting options are described below.
@@ -29,7 +29,7 @@ the `src/` package and `app/`. Two free hosting options are described below.
 
    ```yaml
    ---
-   title: RetinaScreen - Diabetic Retinopathy Stage Detection
+   title: Retina Screen - Diabetic Retinopathy Stage Detection
    emoji: 👁️
    colorFrom: red
    colorTo: gray
@@ -55,7 +55,7 @@ the `src/` package and `app/`. Two free hosting options are described below.
    git lfs track "*.keras"
    git add .gitattributes
    git add .
-   git commit -m "Deploy RetinaScreen"
+   git commit -m "Deploy Retina Screen"
    git push
    ```
 
