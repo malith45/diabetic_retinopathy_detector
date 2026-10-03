@@ -1,6 +1,6 @@
 # Diabetic Retinopathy Stage Detection with Transfer Learning and External Validation
 
-Computer Vision coursework - BSc (Hons) Computer Science, NIBM (Coventry University), batch BSCCOMP24.2P.034
+Computer Vision coursework - BSc (Hons) Computing, NIBM (Coventry University), batch BSCCOMP24.2P.034
 
 A reproducible pipeline that grades colour fundus photographs into the five stages of diabetic
 retinopathy (ICDR scale: No DR, Mild, Moderate, Severe, Proliferative) with an ImageNet-pretrained CNN,
